@@ -6,20 +6,38 @@ A map-first CRM prototype for Caravaggio Real Estate prospects, laid out like re
 - **Along a route**: set a start (or use your location) and a destination. Prospects with a property within the corridor are listed in the order you'd reach them.
 - Filters cover status, customer type, category, region, campaign, follow-up and name/company/phone (all multi-select, matching the Salesforce fields).
 - **Export call list** downloads the current results as a CSV (name, company, phone, email, status, distance, property).
-- Status, follow-up and notes can be edited. Edits are saved in this browser only.
+- Status, follow-up and notes can be edited. Edits are saved to the database and shared by everyone signed in.
+- Sign-in is by emailed link and invite-only: only people added in Supabase can get in.
 
 ## Run
+
+Create `.env.local` with the Supabase project URL and publishable key (Supabase dashboard → Project Settings → API Keys):
+
+```
+VITE_SUPABASE_URL=https://whtbouubrvqanmxtyabz.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+```
+
+Then:
 
 ```bash
 npm install
 npm run dev
 ```
 
-Then open http://localhost:5173.
+Open http://localhost:5173 and sign in with an invited email.
 
-## Deploy
+## Hosting
 
-Pushing to `main` builds the site and publishes it to GitHub Pages (`.github/workflows/deploy.yml`) at https://cgtechnologies.github.io/prospect-map/. The repository is private, but the published site is public to anyone with the link.
+- **App:** Railway project `prospect-map`, service `web`, at https://web-production-2ef32975.up.railway.app. Railway runs `npm run build` and serves `dist/` with `npm start`. `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` are set as service variables. Deploy with `railway up --service web`.
+- **Database and sign-in:** Supabase project `prospect-map` in ca-central-1 (Canada).
+  - `supabase/migrations/` holds the schema. Signed-in users can read everything and change only status, follow-up and notes; anonymous requests are refused. Apply changes with `supabase db push`.
+  - `supabase/seed.sql` is the fictional sample data, generated from `src/data/seed.ts` with `npm run seed:generate`.
+  - Auth settings (site URL, redirect URLs, sign-up disabled) live in `supabase/config.toml` and are applied with `supabase config push`.
+
+### Adding a user
+
+Supabase dashboard → Authentication → Users → **Invite user**. They then sign in on the app with that email.
 
 ## Notes
 

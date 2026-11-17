@@ -208,3 +208,19 @@ h2, h3, h4 { margin: 0; }
     background: var(--text); color: #fff; border: 0; border-radius: 999px; padding: 10px 20px; font-weight: 600; box-shadow: var(--shadow); }
   .facts { grid-template-columns: 1fr; }
 }
+
+/* Sign-in */
+.auth-screen { min-height: 100%; display: grid; place-items: center; padding: 16px; background: var(--bg); }
+.auth-card { width: 100%; max-width: 380px; display: flex; flex-direction: column; gap: 14px; padding: 28px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); }
+.auth-card h2 { font-size: 20px; margin-top: 6px; }
+.auth-card p { margin: 0; line-height: 1.5; }
+.auth-card .btn { height: 40px; }
+.auth-card .link-btn { align-self: flex-start; padding: 0; }
+.auth-field { display: flex; flex-direction: column; gap: 6px; font-weight: 500; }
+.auth-field input { height: 40px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.auth-field input:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.auth-error { color: #b42318; font-size: 13px; }
+.user-menu { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.user-menu .email { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 720px) { .user-menu .email { display: none; } }

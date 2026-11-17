@@ -4,10 +4,10 @@ import { MultiSelect } from './components/MultiSelect';
 import { PlaceSearch } from './components/PlaceSearch';
 import { ProspectCard } from './components/ProspectCard';
 import { ProspectDetail } from './components/ProspectDetail';
-import { CAMPAIGNS } from './data/seed';
 import { distanceToRoute, formatKm, haversineKm, indexRoute } from './lib/geo';
 import { currentPosition, fetchRoute, reverseGeocode } from './lib/services';
 import { exportCallList, useProspects } from './lib/store';
+import { supabase } from './lib/supabase';
 import {
   CATEGORIES,
   CUSTOMER_TYPES,
@@ -35,8 +35,10 @@ const EMPTY_FILTERS: Filters = {
 
 type Sort = 'distance' | 'name' | 'value';
 
-export default function App() {
-  const { prospects, update } = useProspects();
+export default function App({ userEmail }: { userEmail: string }) {
+  const [notice, setNotice] = useState('');
+  const { prospects, loading, update } = useProspects(setNotice);
+  const campaigns = useMemo(() => [...new Set(prospects.flatMap((p) => p.campaigns))].sort((a, b) => a.localeCompare(b)), [prospects]);
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [mode, setMode] = useState<Mode>('near');
   const [center, setCenter] = useState<Place | null>(null);
@@ -50,7 +52,6 @@ export default function App() {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [sort, setSort] = useState<Sort>('distance');
   const [mobileView, setMobileView] = useState<'map' | 'list'>('map');
-  const [notice, setNotice] = useState('');
   const [locating, setLocating] = useState(false);
 
   // Fetch a driving route whenever both ends are set.
@@ -162,6 +163,7 @@ export default function App() {
   const set = <K extends keyof Filters>(k: K) => (v: Filters[K]) => setFilters((f) => ({ ...f, [k]: v }));
 
   const summary = (() => {
+    if (loading) return 'Loading prospects…';
     const n = matches.length;
     const noun = n === 1 ? 'prospect' : 'prospects';
     if (mode === 'near' && center) return `${n} ${noun} within ${radiusKm} km of ${center.label}`;
@@ -229,6 +231,13 @@ export default function App() {
             </div>
           )}
         </div>
+
+        <div className="user-menu">
+          <span className="email muted small" title={userEmail}>{userEmail}</span>
+          <button type="button" className="btn small" onClick={() => supabase.auth.signOut()}>
+            Sign out
+          </button>
+        </div>
       </header>
 
       <div className="filterbar">
@@ -250,7 +259,7 @@ export default function App() {
         <MultiSelect label="Customer type" options={CUSTOMER_TYPES} value={filters.customerTypes} onChange={set('customerTypes')} />
         <MultiSelect label="Category" options={CATEGORIES} value={filters.categories} onChange={set('categories')} />
         <MultiSelect label="Region" options={REGIONS} value={filters.regions} onChange={set('regions')} />
-        <MultiSelect label="Campaign" options={CAMPAIGNS} value={filters.campaigns} onChange={set('campaigns')} />
+        <MultiSelect label="Campaign" options={campaigns} value={filters.campaigns} onChange={set('campaigns')} />
         <button
           type="button"
           className={`chip-btn ${filters.followUpOnly ? 'active' : ''}`}
