@@ -9,6 +9,8 @@ export interface Profile {
   displayName: string;
   role: 'admin' | 'member';
   currentBusiness: Business;
+  /** Added to the end of emails sent from Hub. */
+  signature: string;
 }
 
 interface SessionValue {
@@ -20,6 +22,8 @@ interface SessionValue {
   setBusiness: (b: Business) => void;
   /** Saves the signed-in user's display name. Returns an error message, or '' on success. */
   rename: (name: string) => Promise<string>;
+  /** Saves the signed-in user's email signature. Returns an error message, or '' on success. */
+  saveSignature: (signature: string) => Promise<string>;
 }
 
 const SessionContext = createContext<SessionValue | null>(null);
@@ -30,6 +34,7 @@ interface ProfileRow {
   display_name: string;
   role: 'admin' | 'member';
   current_business: Business;
+  signature: string;
 }
 
 const fromRow = (r: ProfileRow): Profile => ({
@@ -38,6 +43,7 @@ const fromRow = (r: ProfileRow): Profile => ({
   displayName: r.display_name || r.email,
   role: r.role,
   currentBusiness: r.current_business,
+  signature: r.signature ?? '',
 });
 
 /** Loads the signed-in user's profile and the team list, and remembers the business switch per user. */
@@ -49,7 +55,7 @@ export function SessionProvider({ session, children }: { session: Session; child
   useEffect(() => {
     supabase
       .from('profiles')
-      .select('id, email, display_name, role, current_business')
+      .select('id, email, display_name, role, current_business, signature')
       .order('display_name')
       .then(({ data, error }) => {
         if (error) return setError(error.message);
@@ -75,6 +81,13 @@ export function SessionProvider({ session, children }: { session: Session; child
     return '';
   };
 
+  const saveSignature = async (signature: string) => {
+    const { error: e } = await supabase.from('profiles').update({ signature }).eq('id', session.user.id);
+    if (e) return e.message;
+    setPeople((prev) => prev?.map((p) => (p.id === session.user.id ? { ...p, signature } : p)) ?? prev);
+    return '';
+  };
+
   if (error) {
     return (
       <div className="auth-screen">
@@ -97,10 +110,11 @@ export function SessionProvider({ session, children }: { session: Session; child
     displayName: session.user.email ?? '',
     role: 'member' as const,
     currentBusiness: business,
+    signature: '',
   };
 
   return (
-    <SessionContext.Provider value={{ session, profile, people, business, setBusiness, rename }}>{children}</SessionContext.Provider>
+    <SessionContext.Provider value={{ session, profile, people, business, setBusiness, rename, saveSignature }}>{children}</SessionContext.Provider>
   );
 }
 

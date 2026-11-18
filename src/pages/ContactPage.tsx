@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ConsentPanel } from '../components/ConsentPanel';
 import { ContactForm } from '../components/ContactForm';
+import { EmailComposer } from '../components/EmailComposer';
 import { MeetingsPanel } from '../components/MeetingsPanel';
 import { Confirm } from '../components/Dialog';
 import { PropertiesMap, PropertyEditor } from '../components/PropertyEditor';
@@ -31,6 +32,7 @@ export default function ContactPage() {
   const { activities, add, remove, reload: reloadActivities } = useActivities(id, reportError);
 
   const [editing, setEditing] = useState(false);
+  const [emailing, setEmailing] = useState(false);
   const [propertyEditing, setPropertyEditing] = useState<Property | 'new' | null>(null);
   const [confirm, setConfirm] = useState<'archive' | 'delete' | 'removeProperty' | null>(null);
   const [notes, setNotes] = useState('');
@@ -151,9 +153,9 @@ export default function ContactPage() {
               </a>
             )}
             {contact.email && (
-              <a className="btn" href={`mailto:${contact.email}`}>
+              <button type="button" className="btn" onClick={() => setEmailing(true)}>
                 Email
-              </a>
+              </button>
             )}
             <button type="button" className="btn" onClick={() => setEditing(true)}>
               Edit
@@ -365,6 +367,17 @@ export default function ContactPage() {
         <div className="toast app-toast" role="alert">
           {error}
         </div>
+      )}
+
+      {emailing && (
+        <EmailComposer
+          contact={contact}
+          onClose={() => setEmailing(false)}
+          onSent={async (at) => {
+            await reloadActivities();
+            store.touchActivity(contact.id, at);
+          }}
+        />
       )}
 
       {editing && <ContactForm contact={contact} onClose={() => setEditing(false)} onSaved={() => reloadActivities()} />}

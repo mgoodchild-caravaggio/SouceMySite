@@ -658,3 +658,18 @@ a.theme-btn { text-decoration: none; }
   .form-grid.three { grid-template-columns: 1fr 1fr; }
   .form-grid.three > :first-child { grid-column: 1 / -1; }
 }
+
+/* Email composer and templates */
+.composer-form { display: flex; flex-direction: column; gap: 12px; }
+.composer-form textarea, .template-form textarea { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; resize: vertical; line-height: 1.5; }
+.to-line { padding: 8px 10px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--line); overflow-wrap: anywhere; }
+.signature-preview pre { margin: 4px 0 0; font: inherit; white-space: pre-wrap; color: var(--muted); padding-left: 10px; border-left: 2px solid var(--line); }
+.notice.small { font-size: 13px; }
+.template-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.template-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line-soft); }
+.template-list li:last-child { border-bottom: 0; }
+.template-form { display: flex; flex-direction: column; gap: 12px; }
+.field-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.field-chips button { border: 1px dashed var(--line-strong); background: var(--surface); border-radius: 999px; padding: 3px 9px; font-size: 12px; color: var(--muted); }
+.field-chips button:hover { color: var(--accent); border-color: var(--accent); }
+.signature-field textarea { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; resize: vertical; }

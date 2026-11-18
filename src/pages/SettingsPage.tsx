@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useLocation, useSearchParams } from 'react-router-dom';
+import { TemplateManager } from '../components/TemplateManager';
 import { formatDate } from '../lib/filters';
 import { callFunction, connectOutlook, useOutlookConnections } from '../lib/outlook';
 import { useSession } from '../lib/session';
@@ -12,7 +13,10 @@ interface CheckResult {
 
 /** Your profile, your Outlook connection, and (for everyone) who's on the team. */
 export default function SettingsPage() {
-  const { profile, people, rename } = useSession();
+  const { profile, people, rename, saveSignature } = useSession();
+  const { hash } = useLocation();
+  const [signature, setSignature] = useState(profile.signature);
+  const [sigMsg, setSigMsg] = useState('');
   const { connections, reload } = useOutlookConnections();
   const [params, setParams] = useSearchParams();
   const [name, setName] = useState(profile.displayName);
@@ -39,6 +43,17 @@ export default function SettingsPage() {
     reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Links like /settings#signature jump to that section.
+  useEffect(() => {
+    if (hash) document.getElementById(hash.slice(1))?.scrollIntoView({ block: 'start' });
+  }, [hash]);
+
+  async function saveSig(e: FormEvent) {
+    e.preventDefault();
+    const err = await saveSignature(signature.trim());
+    setSigMsg(err ? `Couldn't save: ${err}` : 'Saved.');
+  }
 
   async function saveName(e: FormEvent) {
     e.preventDefault();
@@ -96,6 +111,30 @@ export default function SettingsPage() {
         </form>
       </section>
 
+      <section className="panel" id="signature">
+        <h2>Email signature</h2>
+        <form className="signature-field" onSubmit={saveSig}>
+          <label className="field">
+            <span>Added to the end of emails you send from Hub (Outlook doesn't add its own signature to these)</span>
+            <textarea
+              rows={5}
+              value={signature}
+              placeholder={`${profile.displayName}\nCaravaggio Real Estate\n905 555 0100`}
+              onChange={(e) => {
+                setSignature(e.target.value);
+                setSigMsg('');
+              }}
+            />
+          </label>
+          <div className="inline-actions">
+            <button type="submit" className="btn small primary" disabled={signature.trim() === profile.signature}>
+              Save signature
+            </button>
+            {sigMsg && <span className="muted small" role="status">{sigMsg}</span>}
+          </div>
+        </form>
+      </section>
+
       <section className="panel">
         <h2>Outlook</h2>
         <p className="muted">
@@ -147,6 +186,8 @@ export default function SettingsPage() {
           </div>
         )}
       </section>
+
+      <TemplateManager />
 
       <section className="panel">
         <h2>Team</h2>
