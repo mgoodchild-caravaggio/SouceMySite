@@ -1,3 +1,4 @@
+import { displayName, initials } from '../lib/filters';
 import { formatKm, formatMoney } from '../lib/geo';
 import type { Match, Mode } from '../types';
 
@@ -23,10 +24,10 @@ export function ProspectCard({ match, mode, searchActive, selected, hovered, onS
     >
       <button type="button" className="card-hit" onClick={onSelect} aria-label={`Open ${p.firstName} ${p.lastName}`} />
       <header className="card-head">
-        <div className={`avatar s-${slug(p.status)}`}>{p.firstName[0] + p.lastName[0]}</div>
+        <div className={`avatar s-${slug(p.status)}`}>{initials(p)}</div>
         <div className="card-title">
           <h3>
-            {p.firstName} {p.lastName}
+            {displayName(p)}
           </h3>
           <div className="muted">{p.company === 'tbd' ? 'Individual' : p.company}</div>
         </div>

@@ -7,18 +7,6 @@ const PAGES = {
     title: 'Dashboard',
     next: 'Follow-ups due, pipeline counts, recent activity and a map snapshot are coming next.',
   },
-  prospects: {
-    title: 'Prospects',
-    next: 'A sortable, filterable table of prospects with add, edit and archive is coming next.',
-  },
-  contacts: {
-    title: 'Contacts',
-    next: 'A table of everyone, with tabs for prospects and other contacts, plus a page for each contact, is coming next.',
-  },
-  archive: {
-    title: 'Archive',
-    next: 'Archived contacts will appear here, ready to restore. Admins will also be able to delete them permanently.',
-  },
 };
 
 /** Placeholder for pages planned in docs/ROADMAP.md, showing a little live data so it isn't empty. */

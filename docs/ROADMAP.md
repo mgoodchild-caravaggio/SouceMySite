@@ -56,8 +56,8 @@ Access rules: signed-in users can read and edit all live contacts, properties an
 
 ## Build order
 
-1. **Foundation:** routing, sidebar and business switch; database migration (contacts with the new fields, activities, profiles with Matt and Eric as admins, archive, follow-up date, assignment); updated access rules; current map moves to `/map` unchanged.
-2. **Lists and editing:** Prospects and Contacts tables, contact page, add/edit/archive/restore, property editor with address search.
+1. ✅ **Foundation** (done 2026-11-17): routing, sidebar and business switch; database migration (contacts with the new fields, activities, profiles with Matt and Eric as admins, archive, follow-up date, assignment); updated access rules; current map moves to `/map` unchanged.
+2. ✅ **Lists and editing** (done 2026-11-17; still to do: remembering column choices per user, and "Add prospect here" from a map click): Prospects and Contacts tables, contact page, add/edit/archive/restore, property editor with address search.
 3. **Dashboard:** the four panels, built on the activities and follow-up dates from step 1.
 4. **Salesforce import:** the 413 leads mapped into contacts (with Seller and the other agreed customer types), properties geocoded, sample data removed. Switch to a paid map/geocoding provider before this step.
 

@@ -1,3 +1,4 @@
+import { displayName } from '../lib/filters';
 import L from 'leaflet';
 import { useEffect, useMemo, useState } from 'react';
 import { Circle, MapContainer, Marker, Polyline, TileLayer, Tooltip, useMap, useMapEvents } from 'react-leaflet';
@@ -187,7 +188,7 @@ function Pins({ pins, searchActive, selectedId, hoveredId, onSelect, onHover }: 
           >
             <Tooltip direction="top" offset={[0, -10]} opacity={1}>
               <strong>
-                {m.prospect.firstName} {m.prospect.lastName}
+                {displayName(m.prospect)}
               </strong>
               <br />
               {m.property.address}

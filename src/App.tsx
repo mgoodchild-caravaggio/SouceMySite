@@ -6,6 +6,9 @@ import { ContactsProvider } from './lib/store';
 import { supabase } from './lib/supabase';
 import MapPage from './pages/MapPage';
 import { ComingSoon } from './pages/ComingSoon';
+import ArchivePage from './pages/ArchivePage';
+import ContactListPage from './pages/ContactListPage';
+import ContactPage from './pages/ContactPage';
 import { BUSINESSES } from './types';
 
 export default function App({ session }: { session: Session }) {
@@ -26,10 +29,10 @@ export default function App({ session }: { session: Session }) {
             <Route element={<Shell />}>
               <Route index element={<ComingSoon page="dashboard" />} />
               <Route path="map" element={<MapPage />} />
-              <Route path="prospects" element={<ComingSoon page="prospects" />} />
-              <Route path="contacts" element={<ComingSoon page="contacts" />} />
-              <Route path="contacts/:id" element={<ComingSoon page="contacts" />} />
-              <Route path="archive" element={<ComingSoon page="archive" />} />
+              <Route path="prospects" element={<ContactListPage key="prospects" kind="prospects" />} />
+              <Route path="contacts" element={<ContactListPage key="contacts" kind="contacts" />} />
+              <Route path="contacts/:id" element={<ContactPage />} />
+              <Route path="archive" element={<ArchivePage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
           </Routes>

@@ -6,6 +6,7 @@ import { ProspectCard } from '../components/ProspectCard';
 import { ProspectDetail } from '../components/ProspectDetail';
 import { distanceToRoute, formatKm, haversineKm, indexRoute } from '../lib/geo';
 import { currentPosition, fetchRoute, reverseGeocode } from '../lib/services';
+import { EMPTY_FILTERS, matchesFilters } from '../lib/filters';
 import { useSession } from '../lib/session';
 import { exportCallList, useContacts } from '../lib/store';
 import {
@@ -19,19 +20,9 @@ import {
   type Mode,
   type Place,
   type Property,
-  type Prospect,
   type RouteResult,
 } from '../types';
 
-const EMPTY_FILTERS: Filters = {
-  text: '',
-  statuses: [],
-  regions: [],
-  categories: [],
-  customerTypes: [],
-  campaigns: [],
-  followUpOnly: false,
-};
 
 type Sort = 'distance' | 'name' | 'value';
 
@@ -384,19 +375,3 @@ export default function MapPage() {
   );
 }
 
-function matchesFilters(p: Prospect, f: Filters): boolean {
-  const any = <T,>(want: T[], have: T[]) => want.length === 0 || want.some((w) => have.includes(w));
-  if (f.statuses.length && !f.statuses.includes(p.status)) return false;
-  if (!any(f.regions, p.regions)) return false;
-  if (!any(f.categories, p.categories)) return false;
-  if (!any(f.customerTypes, p.customerTypes)) return false;
-  if (!any(f.campaigns, p.campaigns)) return false;
-  if (f.followUpOnly && !p.followUp) return false;
-  const q = f.text.trim().toLowerCase();
-  if (q) {
-    const digits = q.replace(/\D/g, '');
-    const hay = `${p.firstName} ${p.lastName} ${p.company} ${p.email ?? ''}`.toLowerCase();
-    if (!hay.includes(q) && !(digits.length >= 3 && p.phone.replace(/\D/g, '').includes(digits))) return false;
-  }
-  return true;
-}

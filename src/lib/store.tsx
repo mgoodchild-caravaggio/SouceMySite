@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { supabase } from './supabase';
-import type { Business, Category, Contact, CustomerType, Prospect, Region, Status } from '../types';
+import type { Business, Category, Contact, CustomerType, Property, Prospect, Region, Status } from '../types';
 
 /** Fields of a contact that can be edited, and their database column names. */
 const COLUMNS = {
@@ -118,39 +118,74 @@ function toRow(changes: Partial<Contact>) {
   return row;
 }
 
+/** A new contact: everything except the id, properties and fields the database fills in. */
+export type NewContact = Omit<Contact, 'id' | 'properties' | 'followUp' | 'archivedAt'>;
+export type PropertyInput = Omit<Property, 'id'>;
+
+const SELECT = '*, properties(*)';
+
 interface ContactsValue {
   /** Every contact that isn't archived, in both businesses. */
   contacts: Contact[];
   loading: boolean;
+  /** When each contact last had an activity (ISO timestamp), by contact id. */
+  lastActivity: Record<string, string>;
   update: (id: string, patch: ContactPatch) => Promise<void>;
+  updateMany: (ids: string[], patch: ContactPatch) => Promise<void>;
+  create: (input: NewContact) => Promise<Contact | null>;
+  archive: (ids: string[]) => Promise<void>;
+  /** Puts a restored (or otherwise changed elsewhere) contact back in the list from the database. */
+  reload: (id: string) => Promise<Contact | null>;
+  addProperty: (contactId: string, input: PropertyInput) => Promise<void>;
+  updateProperty: (contactId: string, propertyId: string, input: PropertyInput) => Promise<void>;
+  removeProperty: (contactId: string, propertyId: string) => Promise<void>;
+  /** Call after logging an activity so the lists' "Last activity" stays current. */
+  touchActivity: (contactId: string, at: string) => void;
 }
 
 const ContactsContext = createContext<ContactsValue | null>(null);
+
+/** Fetches one contact (archived or not) straight from the database. */
+export async function fetchContact(id: string): Promise<Contact | null> {
+  const { data, error } = await supabase.from('contacts').select(SELECT).eq('id', id).maybeSingle();
+  if (error || !data) return null;
+  return fromRow(data as ContactRow);
+}
+
+export function contactFromRow(row: unknown): Contact {
+  return fromRow(row as ContactRow);
+}
 
 /** Loads contacts with their properties once per sign-in, and saves edits to Supabase. */
 export function ContactsProvider({ onError, children }: { onError: (message: string) => void; children: ReactNode }) {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
+  const [lastActivity, setLastActivity] = useState<Record<string, string>>({});
   const contactsRef = useRef(contacts);
   contactsRef.current = contacts;
 
   useEffect(() => {
     let cancelled = false;
-    supabase
-      .from('contacts')
-      .select('*, properties(*)')
-      .is('archived_at', null)
-      .order('last_name')
-      .then(({ data, error }) => {
-        if (cancelled) return;
-        if (error) onError(`Couldn't load contacts: ${error.message}`);
-        else setContacts((data as ContactRow[]).map(fromRow));
-        setLoading(false);
-      });
+    Promise.all([
+      supabase.from('contacts').select(SELECT).is('archived_at', null).order('last_name'),
+      supabase.from('contact_last_activity').select('contact_id, last_activity_at'),
+    ]).then(([contactsRes, activityRes]) => {
+      if (cancelled) return;
+      if (contactsRes.error) onError(`Couldn't load contacts: ${contactsRes.error.message}`);
+      else setContacts((contactsRes.data as ContactRow[]).map(fromRow));
+      if (!activityRes.error) {
+        setLastActivity(
+          Object.fromEntries((activityRes.data as { contact_id: string; last_activity_at: string }[]).map((r) => [r.contact_id, r.last_activity_at])),
+        );
+      }
+      setLoading(false);
+    });
     return () => {
       cancelled = true;
     };
   }, [onError]);
+
+  const setOne = (id: string, fn: (c: Contact) => Contact) => setContacts((prev) => prev.map((c) => (c.id === id ? fn(c) : c)));
 
   const update = useCallback(
     async (id: string, patch: ContactPatch) => {
@@ -159,17 +194,110 @@ export function ContactsProvider({ onError, children }: { onError: (message: str
       if (!before) return;
       const changes = normalize(patch);
       const undo = Object.fromEntries(Object.keys(changes).map((k) => [k, before[k as keyof Contact]])) as Partial<Contact>;
-      setContacts((prev) => prev.map((c) => (c.id === id ? { ...c, ...changes } : c)));
+      setOne(id, (c) => ({ ...c, ...changes }));
       const { error } = await supabase.from('contacts').update(toRow(changes)).eq('id', id);
       if (error) {
-        setContacts((prev) => prev.map((c) => (c.id === id ? { ...c, ...undo } : c)));
+        setOne(id, (c) => ({ ...c, ...undo }));
         onError(`Couldn't save the change: ${error.message}`);
       }
     },
     [onError],
   );
 
-  return <ContactsContext.Provider value={{ contacts, loading, update }}>{children}</ContactsContext.Provider>;
+  const updateMany = useCallback(
+    async (ids: string[], patch: ContactPatch) => {
+      if (!ids.length) return;
+      const changes = normalize(patch);
+      const { error } = await supabase.from('contacts').update(toRow(changes)).in('id', ids);
+      if (error) return onError(`Couldn't update ${ids.length} contacts: ${error.message}`);
+      setContacts((prev) => prev.map((c) => (ids.includes(c.id) ? { ...c, ...changes } : c)));
+    },
+    [onError],
+  );
+
+  const create = useCallback(
+    async (input: NewContact) => {
+      const { data, error } = await supabase.from('contacts').insert(toRow(input)).select(SELECT).single();
+      if (error) {
+        onError(`Couldn't add the contact: ${error.message}`);
+        return null;
+      }
+      const contact = fromRow(data as ContactRow);
+      setContacts((prev) => [...prev, contact]);
+      setLastActivity((prev) => ({ ...prev, [contact.id]: new Date().toISOString() }));
+      return contact;
+    },
+    [onError],
+  );
+
+  const archive = useCallback(
+    async (ids: string[]) => {
+      if (!ids.length) return;
+      const { error } = await supabase.from('contacts').update({ archived_at: new Date().toISOString() }).in('id', ids);
+      if (error) return onError(`Couldn't archive: ${error.message}`);
+      setContacts((prev) => prev.filter((c) => !ids.includes(c.id)));
+    },
+    [onError],
+  );
+
+  const reload = useCallback(async (id: string) => {
+    const contact = await fetchContact(id);
+    setContacts((prev) => {
+      const rest = prev.filter((c) => c.id !== id);
+      return contact && !contact.archivedAt ? [...rest, contact] : rest;
+    });
+    return contact;
+  }, []);
+
+  const propertyRow = (contactId: string, input: PropertyInput) => ({
+    contact_id: contactId,
+    address: input.address,
+    lat: input.lat,
+    lng: input.lng,
+    acres: input.acres ?? null,
+    category: input.category,
+    relation: input.relation,
+  });
+
+  const addProperty = useCallback(
+    async (contactId: string, input: PropertyInput) => {
+      const { data, error } = await supabase.from('properties').insert(propertyRow(contactId, input)).select().single();
+      if (error) return onError(`Couldn't add the property: ${error.message}`);
+      const row = data as PropertyRow;
+      setOne(contactId, (c) => ({ ...c, properties: [...c.properties, { ...row, acres: row.acres ?? undefined }] }));
+    },
+    [onError],
+  );
+
+  const updateProperty = useCallback(
+    async (contactId: string, propertyId: string, input: PropertyInput) => {
+      const { error } = await supabase.from('properties').update(propertyRow(contactId, input)).eq('id', propertyId);
+      if (error) return onError(`Couldn't save the property: ${error.message}`);
+      setOne(contactId, (c) => ({ ...c, properties: c.properties.map((p) => (p.id === propertyId ? { ...input, id: propertyId } : p)) }));
+    },
+    [onError],
+  );
+
+  const removeProperty = useCallback(
+    async (contactId: string, propertyId: string) => {
+      const { error } = await supabase.from('properties').delete().eq('id', propertyId);
+      if (error) return onError(`Couldn't remove the property: ${error.message}`);
+      setOne(contactId, (c) => ({ ...c, properties: c.properties.filter((p) => p.id !== propertyId) }));
+    },
+    [onError],
+  );
+
+  const touchActivity = useCallback((contactId: string, at: string) => {
+    setLastActivity((prev) => (prev[contactId] && prev[contactId] >= at ? prev : { ...prev, [contactId]: at }));
+  }, []);
+
+  return (
+    <ContactsContext.Provider
+      value={{ contacts, loading, lastActivity, update, updateMany, create, archive, reload, addProperty, updateProperty, removeProperty, touchActivity }}
+    >
+      {children}
+    </ContactsContext.Provider>
+  );
 }
 
 export function useContacts() {
@@ -178,18 +306,34 @@ export function useContacts() {
   return value;
 }
 
-export function exportCallList(rows: { prospect: Prospect; distanceLabel?: string; address?: string }[]) {
-  const header = ['Name', 'Company', 'Phone', 'Email', 'Status', 'Distance', 'Property'];
-  const esc = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
-  const lines = rows.map(({ prospect: p, distanceLabel, address }) =>
-    [`${p.firstName} ${p.lastName}`, p.company, p.phone, p.email ?? '', p.status, distanceLabel ?? '', address ?? '']
-      .map(esc)
-      .join(','),
+/** Downloads contacts as a CSV file. */
+export function exportContacts(rows: Contact[], filename: string) {
+  const header = ['First name', 'Last name', 'Company', 'Title', 'Phone', 'Phone 2', 'Email', 'Status', 'Customer types', 'Follow-up', 'Properties'];
+  downloadCsv(
+    [header, ...rows.map((c) => [
+      c.firstName, c.lastName, c.company === 'tbd' ? '' : c.company, c.title, c.phone, c.phone2, c.email ?? '',
+      c.isProspect ? c.status : '', c.customerTypes.join('; '), c.followUpOn ?? '', c.properties.map((p) => p.address).join('; '),
+    ])],
+    filename,
   );
-  const blob = new Blob([[header.join(','), ...lines].join('\n')], { type: 'text/csv' });
+}
+
+function downloadCsv(rows: string[][], filename: string) {
+  const esc = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+  const blob = new Blob([rows.map((r) => r.map(esc).join(',')).join('\n')], { type: 'text/csv' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `call-list-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.download = filename;
   a.click();
   URL.revokeObjectURL(a.href);
+}
+
+export function exportCallList(rows: { prospect: Prospect; distanceLabel?: string; address?: string }[]) {
+  const header = ['Name', 'Company', 'Phone', 'Email', 'Status', 'Distance', 'Property'];
+  downloadCsv(
+    [header, ...rows.map(({ prospect: p, distanceLabel, address }) => [
+      `${p.firstName} ${p.lastName}`, p.company, p.phone, p.email ?? '', p.status, distanceLabel ?? '', address ?? '',
+    ])],
+    `call-list-${new Date().toISOString().slice(0, 10)}.csv`,
+  );
 }

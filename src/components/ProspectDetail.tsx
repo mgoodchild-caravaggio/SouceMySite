@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom';
+import { displayName, initials } from '../lib/filters';
 import { formatKm, haversineKm } from '../lib/geo';
 import { STATUSES, type LatLng, type Property, type Prospect, type Status } from '../types';
 import { slug } from './ProspectCard';
@@ -17,15 +19,15 @@ export function ProspectDetail({ prospect: p, from, onClose, onUpdate, onRouteTo
         <button type="button" className="back-btn" onClick={onClose}>
           ← Back to results
         </button>
-        <span className="muted mono">{p.id}</span>
+        <Link className="link-btn" to={`/contacts/${p.id}`}>
+          Open contact page →
+        </Link>
       </div>
 
       <div className="detail-head">
-        <div className={`avatar lg s-${slug(p.status)}`}>{p.firstName[0] + p.lastName[0]}</div>
+        <div className={`avatar lg s-${slug(p.status)}`}>{initials(p)}</div>
         <div>
-          <h2>
-            {p.firstName} {p.lastName}
-          </h2>
+          <h2>{displayName(p)}</h2>
           <div className="muted">{p.company === 'tbd' ? 'Individual (company tbd)' : p.company}</div>
         </div>
       </div>
