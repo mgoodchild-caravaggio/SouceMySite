@@ -4,6 +4,7 @@ import type { Session } from '@supabase/supabase-js';
 import { SessionProvider, useSession } from './lib/session';
 import { ContactsProvider } from './lib/store';
 import { supabase } from './lib/supabase';
+import { ThemeButton } from './components/ThemeButton';
 import MapPage from './pages/MapPage';
 import DashboardPage from './pages/DashboardPage';
 import ArchivePage from './pages/ArchivePage';
@@ -72,9 +73,9 @@ function Shell() {
           <span>Hub</span>
         </div>
 
-        <div className="business-switch" role="radiogroup" aria-label="Business">
+        <div className="business-switch" role="group" aria-label="Business">
           {BUSINESSES.map((b) => (
-            <button key={b} role="radio" aria-checked={business === b} className={business === b ? 'on' : ''} onClick={() => setBusiness(b)}>
+            <button key={b} aria-pressed={business === b} className={business === b ? 'on' : ''} onClick={() => setBusiness(b)}>
               {b}
             </button>
           ))}
@@ -90,6 +91,10 @@ function Shell() {
             </NavLink>
           ))}
         </nav>
+
+        <div className="sidebar-tools">
+          <ThemeButton />
+        </div>
 
         <div className="sidebar-user">
           <div className="who">

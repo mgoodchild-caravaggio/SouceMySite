@@ -440,9 +440,9 @@ function ActivityComposer({ onAdd }: { onAdd: (kind: LoggableKind, body: string,
 
   return (
     <form className="composer" onSubmit={submit}>
-      <div className="seg small" role="radiogroup" aria-label="Activity type">
+      <div className="seg small" role="group" aria-label="Activity type">
         {LOGGABLE_KINDS.map((k) => (
-          <button key={k} type="button" role="radio" aria-checked={kind === k} className={kind === k ? 'on' : ''} onClick={() => setKind(k)}>
+          <button key={k} type="button" aria-pressed={kind === k} className={kind === k ? 'on' : ''} onClick={() => setKind(k)}>
             {KIND_LABEL[k]}
           </button>
         ))}

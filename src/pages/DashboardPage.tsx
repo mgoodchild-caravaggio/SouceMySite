@@ -114,9 +114,9 @@ export default function DashboardPage() {
         <section className="panel dash-followups">
           <div className="panel-head">
             <h2>Follow-ups due</h2>
-            <div className="seg small" role="radiogroup" aria-label="Whose follow-ups">
+            <div className="seg small" role="group" aria-label="Whose follow-ups">
               {(['mine', 'everyone'] as Scope[]).map((s) => (
-                <button key={s} type="button" role="radio" aria-checked={effectiveScope === s} className={effectiveScope === s ? 'on' : ''} onClick={() => chooseScope(s)}>
+                <button key={s} type="button" aria-pressed={effectiveScope === s} className={effectiveScope === s ? 'on' : ''} onClick={() => chooseScope(s)}>
                   {s === 'mine' ? `Mine (${mineCount})` : `Everyone (${due.length})`}
                 </button>
               ))}
