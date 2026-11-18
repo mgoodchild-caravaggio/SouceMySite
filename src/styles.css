@@ -712,3 +712,20 @@ a.theme-btn { text-decoration: none; }
   .nav a.desktop-only { display: none; }
   .stat-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* Opportunities */
+.opp-group { font-size: 13px; font-weight: 700; margin: 2px 0 0; }
+.opp-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.opp-card { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+.opp-card.closed { opacity: 0.7; }
+.opp-head { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.opp-facts { line-height: 1.5; }
+.opp-notes { margin: 0; font-size: 13px; white-space: pre-wrap; }
+.tag.opp-open { background: var(--s-active-bg); color: var(--s-active-fg); border-color: transparent; font-weight: 600; }
+.tag.opp-under_offer, .tag.opp-matched { background: var(--s-lead-bg); color: var(--s-lead-fg); border-color: transparent; font-weight: 600; }
+.tag.opp-sold, .tag.opp-closed { background: var(--s-contacted-bg); color: var(--s-contacted-fg); border-color: transparent; font-weight: 600; }
+.tag.opp-withdrawn, .tag.opp-dropped { background: var(--s-prospect-bg); color: var(--s-prospect-fg); border-color: transparent; }
+.tag.needs-detail { background: var(--warn-soft); color: var(--warn-strong); border-color: var(--warn-line); font-weight: 600; }
+.area-picker { display: flex; flex-direction: column; gap: 8px; }
+.area-radius { display: flex; align-items: center; gap: 10px; }
+.area-radius input { flex: 1; max-width: 260px; accent-color: var(--accent); }

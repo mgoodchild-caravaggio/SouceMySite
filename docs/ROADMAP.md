@@ -71,3 +71,7 @@ Each step is deployable on its own, so Hub stays usable throughout.
 ## Next: calendar and email marketing
 
 Planned in [PLAN-calendar-email.md](PLAN-calendar-email.md): Outlook calendar in Hub (schedule from Hub, today's meetings), one-off emails from Outlook, and consent-aware campaigns and drip sequences through Resend.
+
+## Next: matching buyers and sellers
+
+Planned in [PLAN-matching.md](PLAN-matching.md): opportunities (listings and buyer requirements), a matching engine, matching campaigns with the map, "Matches & nearby" on prospect pages, and the Ask Hub AI assistant (off until an API key is added in Settings).

@@ -3,6 +3,7 @@ import { BrowserRouter, NavLink, Navigate, Outlet, Route, Routes } from 'react-r
 import type { Session } from '@supabase/supabase-js';
 import { SessionProvider, useSession } from './lib/session';
 import { ContactsProvider } from './lib/store';
+import { OpportunitiesProvider } from './lib/opportunities';
 import { supabase } from './lib/supabase';
 import { ThemeButton } from './components/ThemeButton';
 import MapPage from './pages/MapPage';
@@ -28,6 +29,7 @@ export default function App({ session }: { session: Session }) {
   return (
     <SessionProvider session={session}>
       <ContactsProvider onError={reportError}>
+        <OpportunitiesProvider>
         <BrowserRouter>
           <Routes>
             <Route element={<Shell />}>
@@ -44,6 +46,7 @@ export default function App({ session }: { session: Session }) {
             </Route>
           </Routes>
         </BrowserRouter>
+        </OpportunitiesProvider>
         {error && (
           <div className="toast app-toast" role="alert">
             {error}

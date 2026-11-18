@@ -16,9 +16,14 @@ export interface ListFilters extends Filters {
   assigned: string;
   /** '' any, 'ok' can receive marketing email, 'no' can't. */
   email: '' | 'ok' | 'no';
+  /** '' any, or contacts with an open listing / requirement, or a requirement still needing detail. */
+  opp: '' | 'listing' | 'requirement' | 'needs_detail';
 }
 
-export const EMPTY_LIST_FILTERS: ListFilters = { ...EMPTY_FILTERS, assigned: '', email: '' };
+/** Per contact: which kinds of open opportunity they have. Built once per list render. */
+export type OppFlags = Map<string, { listing: boolean; requirement: boolean; needsDetail: boolean }>;
+
+export const EMPTY_LIST_FILTERS: ListFilters = { ...EMPTY_FILTERS, assigned: '', email: '', opp: '' };
 
 export function matchesFilters(c: Contact, f: Filters): boolean {
   const any = <T,>(want: T[], have: T[]) => want.length === 0 || want.some((w) => have.includes(w));
@@ -38,12 +43,16 @@ export function matchesFilters(c: Contact, f: Filters): boolean {
   return true;
 }
 
-export function matchesListFilters(c: Contact, f: ListFilters, myId: string): boolean {
+export function matchesListFilters(c: Contact, f: ListFilters, myId: string, opps?: OppFlags): boolean {
   if (!matchesFilters(c, f)) return false;
   if (f.assigned === 'me' && c.assignedTo !== myId) return false;
   if (f.assigned === 'none' && c.assignedTo) return false;
   if (f.assigned && !['me', 'none'].includes(f.assigned) && c.assignedTo !== f.assigned) return false;
   if (f.email && (consentState(c) === 'ok') !== (f.email === 'ok')) return false;
+  if (f.opp) {
+    const o = opps?.get(c.id);
+    if (!o || !(f.opp === 'listing' ? o.listing : f.opp === 'requirement' ? o.requirement : o.needsDetail)) return false;
+  }
   return true;
 }
 
@@ -62,6 +71,7 @@ export function filtersFromParams(p: URLSearchParams): ListFilters {
     followUpOnly: p.get('followup') === '1',
     assigned: p.get('assigned') ?? '',
     email: p.get('email') === 'ok' || p.get('email') === 'no' ? (p.get('email') as 'ok' | 'no') : '',
+    opp: (['listing', 'requirement', 'needs_detail'] as const).find((v) => v === p.get('opp')) ?? '',
   };
 }
 
@@ -77,13 +87,14 @@ export function filtersToParams(f: ListFilters, base: URLSearchParams): URLSearc
   set('followup', f.followUpOnly ? '1' : '');
   set('assigned', f.assigned);
   set('email', f.email);
+  set('opp', f.opp);
   return p;
 }
 
 export function activeFilterCount(f: ListFilters): number {
   return (
     f.statuses.length + f.regions.length + f.categories.length + f.customerTypes.length + f.campaigns.length +
-    (f.followUpOnly ? 1 : 0) + (f.assigned ? 1 : 0) + (f.email ? 1 : 0) + (f.text ? 1 : 0)
+    (f.followUpOnly ? 1 : 0) + (f.assigned ? 1 : 0) + (f.email ? 1 : 0) + (f.opp ? 1 : 0) + (f.text ? 1 : 0)
   );
 }
 

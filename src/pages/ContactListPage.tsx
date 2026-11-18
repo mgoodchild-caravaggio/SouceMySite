@@ -15,10 +15,12 @@ import {
   initials,
   matchesListFilters,
   type ListFilters,
+  type OppFlags,
 } from '../lib/filters';
 import { formatMoney } from '../lib/geo';
 import { useSession } from '../lib/session';
 import { exportContacts, useContacts } from '../lib/store';
+import { useOpportunities } from '../lib/opportunities';
 import { CATEGORIES, CUSTOMER_TYPES, REGIONS, STATUSES, type Contact, type Status } from '../types';
 import { slug } from '../components/ProspectCard';
 
@@ -61,6 +63,19 @@ export default function ContactListPage({ kind }: { kind: Kind }) {
     setParams(p, { replace: true });
   };
 
+  const { opportunities } = useOpportunities();
+  const oppFlags = useMemo(() => {
+    const m: OppFlags = new Map();
+    for (const o of opportunities) {
+      if (o.status !== 'open') continue;
+      const f = m.get(o.contactId) ?? { listing: false, requirement: false, needsDetail: false };
+      if (o.kind === 'listing') f.listing = true;
+      else f.requirement = true;
+      if (o.needsDetail) f.needsDetail = true;
+      m.set(o.contactId, f);
+    }
+    return m;
+  }, [opportunities]);
   const peopleById = useMemo(() => Object.fromEntries(people.map((p) => [p.id, p])), [people]);
   const campaigns = useMemo(() => [...new Set(contacts.flatMap((c) => c.campaigns))].sort((a, b) => a.localeCompare(b)), [contacts]);
 
@@ -69,7 +84,7 @@ export default function ContactListPage({ kind }: { kind: Kind }) {
       (c) =>
         c.business === business &&
         (tab === 'all' || (tab === 'prospects' ? c.isProspect : !c.isProspect)) &&
-        matchesListFilters(c, filters, profile.id),
+        matchesListFilters(c, filters, profile.id, oppFlags),
     );
     const key = (c: Contact): string | number => {
       switch (sort) {
@@ -96,7 +111,7 @@ export default function ContactListPage({ kind }: { kind: Kind }) {
       return cmp * dir || displayName(a).localeCompare(displayName(b));
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [contacts, business, tab, params, lastActivity, peopleById, profile.id]);
+  }, [contacts, business, tab, params, lastActivity, peopleById, profile.id, oppFlags]);
 
   const selectedRows = rows.filter((r) => selected.has(r.id));
   const allSelected = rows.length > 0 && selectedRows.length === rows.length;
@@ -215,6 +230,17 @@ export default function ContactListPage({ kind }: { kind: Kind }) {
                 {p.displayName}
               </option>
             ))}
+        </select>
+        <select
+          className={`chip-select ${filters.opp ? 'active' : ''}`}
+          aria-label="Opportunities"
+          value={filters.opp}
+          onChange={(e) => set('opp')(e.target.value as ListFilters['opp'])}
+        >
+          <option value="">Opportunities: any</option>
+          <option value="listing">Has an open listing</option>
+          <option value="requirement">Has an open requirement</option>
+          <option value="needs_detail">Requirement needs detail</option>
         </select>
         <select
           className={`chip-select ${filters.email ? 'active' : ''}`}

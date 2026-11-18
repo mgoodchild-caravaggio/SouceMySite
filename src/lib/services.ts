@@ -24,9 +24,10 @@ export async function searchPlaces(query: string, signal?: AbortSignal): Promise
   return rows.map((r) => ({ lat: Number(r.lat), lng: Number(r.lon), label: shortLabel(r.display_name) }));
 }
 
-export async function reverseGeocode(p: LatLng, signal?: AbortSignal): Promise<string> {
+/** A place name for a point. zoom 16 gives a street address; 10 gives the town. */
+export async function reverseGeocode(p: LatLng, signal?: AbortSignal, zoom = 16): Promise<string> {
   const url = new URL(`${NOMINATIM}/reverse`);
-  url.search = new URLSearchParams({ lat: String(p.lat), lon: String(p.lng), format: 'jsonv2', zoom: '16' }).toString();
+  url.search = new URLSearchParams({ lat: String(p.lat), lon: String(p.lng), format: 'jsonv2', zoom: String(zoom) }).toString();
   try {
     const res = await fetch(url, { signal, headers: { 'Accept-Language': 'en' } });
     if (!res.ok) throw new Error();

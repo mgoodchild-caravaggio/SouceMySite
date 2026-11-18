@@ -4,6 +4,7 @@ import { ConsentPanel } from '../components/ConsentPanel';
 import { ContactForm } from '../components/ContactForm';
 import { EmailComposer } from '../components/EmailComposer';
 import { MeetingsPanel } from '../components/MeetingsPanel';
+import { OpportunitiesPanel } from '../components/OpportunitiesPanel';
 import { Confirm } from '../components/Dialog';
 import { PropertiesMap, PropertyEditor } from '../components/PropertyEditor';
 import { slug } from '../components/ProspectCard';
@@ -278,6 +279,8 @@ export default function ContactPage() {
         </div>
 
         <div className="detail-col">
+          {contact.business === 'Real Estate' && <OpportunitiesPanel contact={contact} disabled={isArchived} />}
+
           {(contact.isProspect || contact.properties.length > 0) && (
             <section className="panel">
               <div className="panel-head">
