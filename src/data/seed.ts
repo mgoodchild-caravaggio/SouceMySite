@@ -1,4 +1,4 @@
-import type { Category, CustomerType, Prospect, Property, Region, Status } from '../types';
+import type { Category, Contact, CustomerType, Prospect, Property, Region, Status } from '../types';
 
 // Fictional sample data. Names, companies, phone numbers (555-01xx) and emails (example.com)
 // are invented; locations are scattered around real Southern Ontario towns so the map is realistic.
@@ -33,18 +33,18 @@ interface Anchor {
 }
 
 const ANCHORS: Anchor[] = [
-  { town: 'Barrie', lat: 44.3894, lng: -79.6903, region: 'Simcoe', spreadKm: 7, areaCode: '705', categories: ['Expansion Boundary', 'Urban Boundary', 'Condo Land'], campaigns: ['barrie sec 1', 'barrie sec 2', 'Intro Letter Sellers'] },
+  { town: 'Barrie', lat: 44.3894, lng: -79.6903, region: 'Simcoe', spreadKm: 7, areaCode: '705', categories: ['Expansion Boundary', 'Residential Land', 'Residential'], campaigns: ['barrie sec 1', 'barrie sec 2', 'Intro Letter Sellers'] },
   { town: 'Innisfil', lat: 44.3550, lng: -79.6200, region: 'Simcoe', spreadKm: 6, areaCode: '705', categories: ['Industrial Land', 'Industrial Building', 'Expansion Boundary'], campaigns: ['Innisfil Heights Industrial', 'hewitts creek land owners group'] },
   { town: 'Oro-Medonte', lat: 44.5000, lng: -79.5500, region: 'Simcoe', spreadKm: 9, areaCode: '705', categories: ['White Belt', 'Agricultural'], campaigns: ['White Belt Agricultural Buyers', 'Intro Letter Sellers'] },
   { town: 'Bradford', lat: 44.1140, lng: -79.5660, region: 'Simcoe', spreadKm: 6, areaCode: '905', categories: ['White Belt', 'Agricultural', 'Expansion Boundary'], campaigns: ['Intro Letter Sellers', 'Expansion Boundary Land Sellers'] },
-  { town: 'Orillia', lat: 44.6080, lng: -79.4200, region: 'Simcoe', spreadKm: 6, areaCode: '705', categories: ['Investment Property', 'Urban Boundary'], campaigns: ['Sphere of Influence'] },
-  { town: 'Newmarket', lat: 44.0590, lng: -79.4610, region: 'York', spreadKm: 5, areaCode: '905', categories: ['Condo Land', 'Investment Property'], campaigns: ['Past Clients', 'Market Watch'] },
+  { town: 'Orillia', lat: 44.6080, lng: -79.4200, region: 'Simcoe', spreadKm: 6, areaCode: '705', categories: ['Investment Property', 'Residential'], campaigns: ['Sphere of Influence'] },
+  { town: 'Newmarket', lat: 44.0590, lng: -79.4610, region: 'York', spreadKm: 5, areaCode: '905', categories: ['Residential', 'Investment Property'], campaigns: ['Past Clients', 'Market Watch'] },
   { town: 'Stouffville', lat: 43.9700, lng: -79.2500, region: 'York', spreadKm: 6, areaCode: '905', categories: ['White Belt', 'Expansion Boundary'], campaigns: ['Expansion Boundary Land Sellers'] },
   { town: 'King', lat: 43.9260, lng: -79.5280, region: 'York', spreadKm: 7, areaCode: '905', categories: ['White Belt', 'Agricultural'], campaigns: ['White Belt Agricultural Buyers'] },
-  { town: 'Georgina', lat: 44.2500, lng: -79.4600, region: 'York', spreadKm: 6, areaCode: '905', categories: ['Agricultural', 'Urban Boundary'], campaigns: ['Intro Letter Sellers'] },
+  { town: 'Georgina', lat: 44.2500, lng: -79.4600, region: 'York', spreadKm: 6, areaCode: '905', categories: ['Agricultural', 'Residential Land'], campaigns: ['Intro Letter Sellers'] },
   { town: 'Uxbridge', lat: 44.1080, lng: -79.1200, region: 'Durham', spreadKm: 7, areaCode: '905', categories: ['White Belt', 'Agricultural'], campaigns: ['Durham Land Sellers', 'Durham Intro to sellers'] },
   { town: 'Pickering', lat: 43.9000, lng: -79.1300, region: 'Durham', spreadKm: 5, areaCode: '905', categories: ['Expansion Boundary', 'Industrial Land'], campaigns: ['Durham Intro to sellers', '3 month to close - Opportunity'] },
-  { town: 'Brooklin', lat: 43.9600, lng: -78.9500, region: 'Durham', spreadKm: 6, areaCode: '905', categories: ['Expansion Boundary', 'Urban Boundary'], campaigns: ['Durham Land Sellers'] },
+  { town: 'Brooklin', lat: 43.9600, lng: -78.9500, region: 'Durham', spreadKm: 6, areaCode: '905', categories: ['Expansion Boundary', 'Residential Land'], campaigns: ['Durham Land Sellers'] },
   { town: 'Bowmanville', lat: 43.9120, lng: -78.6900, region: 'Durham', spreadKm: 7, areaCode: '905', categories: ['White Belt', 'Industrial Land'], campaigns: ['Durham Land Sellers', 'Durham Intro to sellers'] },
   { town: 'Port Perry', lat: 44.1000, lng: -78.9400, region: 'Durham', spreadKm: 5, areaCode: '905', categories: ['Agricultural', 'Investment Property'], campaigns: ['Durham Intro to sellers'] },
   { town: 'Milton', lat: 43.5180, lng: -79.8770, region: 'Halton', spreadKm: 6, areaCode: '905', categories: ['Industrial Land', 'Expansion Boundary'], campaigns: ['Expansion Boundary Land Sellers', '3 month to close - Opportunity'] },
@@ -53,9 +53,9 @@ const ANCHORS: Anchor[] = [
   { town: 'Brampton', lat: 43.7500, lng: -79.7800, region: 'Peel', spreadKm: 5, areaCode: '905', categories: ['Industrial Building', 'Industrial Land'], campaigns: ['Intro Letter Buyers', 'Past Clients'] },
   { town: 'Elfrida', lat: 43.1700, lng: -79.8000, region: 'Hamilton-Wentworth', spreadKm: 5, areaCode: '905', categories: ['White Belt', 'Expansion Boundary'], campaigns: ['Hamilton Elfrida'] },
   { town: 'Binbrook', lat: 43.1200, lng: -79.8100, region: 'Hamilton-Wentworth', spreadKm: 5, areaCode: '905', categories: ['Agricultural', 'White Belt'], campaigns: ['Hamilton Elfrida'] },
-  { town: 'Waterdown', lat: 43.3300, lng: -79.8900, region: 'Hamilton-Wentworth', spreadKm: 4, areaCode: '905', categories: ['Urban Boundary', 'Condo Land'], campaigns: ['Sphere of Influence'] },
+  { town: 'Waterdown', lat: 43.3300, lng: -79.8900, region: 'Hamilton-Wentworth', spreadKm: 4, areaCode: '905', categories: ['Residential Land', 'Residential'], campaigns: ['Sphere of Influence'] },
   { town: 'Etobicoke', lat: 43.6800, lng: -79.5800, region: 'Toronto', spreadKm: 4, areaCode: '416', categories: ['Industrial Building', 'Investment Property'], campaigns: ['Past Clients', 'Market Watch'] },
-  { town: 'Scarborough', lat: 43.7800, lng: -79.2300, region: 'Toronto', spreadKm: 4, areaCode: '416', categories: ['Condo Land', 'Investment Property'], campaigns: ['Sphere of Influence'] },
+  { town: 'Scarborough', lat: 43.7800, lng: -79.2300, region: 'Toronto', spreadKm: 4, areaCode: '416', categories: ['Residential', 'Investment Property'], campaigns: ['Sphere of Influence'] },
   { town: 'London', lat: 42.9800, lng: -81.2500, region: 'Middlesex', spreadKm: 8, areaCode: '519', categories: ['Industrial Land', 'Expansion Boundary'], campaigns: ['Intro Letter Sellers'] },
   { town: 'Norwood', lat: 44.3800, lng: -77.9800, region: 'Peterborough', spreadKm: 6, areaCode: '705', categories: ['Agricultural', 'White Belt'], campaigns: ['Intro Letter Sellers'] },
 ];
@@ -116,7 +116,11 @@ function buildSeed(count: number): Prospect[] {
     } while (usedPhones.has(phone));
     usedPhones.add(phone);
 
-    const customerTypes = some<CustomerType>(['Seller', 'Seller', 'Buyer', 'Investor', 'Builder Developer'], 2);
+    // Weighted towards sellers, since most prospects own the parcel on the map.
+    const customerTypes = some<CustomerType>(
+      ['Seller', 'Seller', 'Seller', 'Agricultural', 'Investor', 'Buyer', 'Builder/Developer', 'Past Client', 'Finance/Lender', 'Referral Source', 'Infrastructure'],
+      2,
+    );
     const propertyCount = rand() < 0.72 ? 1 : rand() < 0.85 ? 2 : 3;
     const properties: Property[] = [];
     for (let p = 0; p < propertyCount; p++) {
@@ -149,7 +153,13 @@ function buildSeed(count: number): Prospect[] {
       categories: [...new Set([...properties.map((p) => p.category), ...(rand() < 0.3 ? [pick(home.categories)] : [])])],
       customerTypes,
       dealValue: rand() < 0.35 ? Math.round((300_000 + rand() * 6_000_000) / 10_000) * 10_000 : undefined,
-      followUp: rand() < 0.25,
+      ...followUp(rand() < 0.25 ? Math.floor(rand() * 24) - 10 : null),
+      business: 'Real Estate',
+      isProspect: true,
+      title: '',
+      phone2: '',
+      website: '',
+      mailingAddress: '',
       campaigns: rand() < 0.15 ? [] : some(home.campaigns, 2),
       notes: '',
       properties,
@@ -163,4 +173,59 @@ function regionOf(p: Property, fallback: Anchor): Region {
   return ANCHORS.find((a) => a.town === town)?.region ?? fallback.region;
 }
 
+/** A follow-up `days` from today (negative = overdue), or none. */
+function followUp(days: number | null): Pick<Contact, 'followUp' | 'followUpOn'> {
+  if (days === null) return { followUp: false };
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return { followUp: true, followUpOn: d.toLocaleDateString('en-CA') };
+}
+
+// Contacts who aren't prospects: people the team works with, in both businesses.
+const OTHER_CONTACTS: [first: string, last: string, company: string, title: string, business: Contact['business'], types: CustomerType[]][] = [
+  ['Helen', 'Marchetti', 'Marchetti Law LLP', 'Real estate lawyer', 'Real Estate', ['Referral Source']],
+  ['Owen', 'Pratt', 'Lakeshore Credit Union', 'Commercial lender', 'Real Estate', ['Finance/Lender']],
+  ['Farah', 'Siddiqui', 'Town of Innisfil', 'Senior planner', 'Real Estate', ['Infrastructure']],
+  ['Glen', 'Archer', 'Archer Surveying', 'Land surveyor', 'Real Estate', ['Referral Source']],
+  ['Monica', 'Teixeira', 'Northshore Mortgage', 'Mortgage broker', 'Real Estate', ['Finance/Lender']],
+  ['Ray', 'Dubois', 'Region of Durham', 'Infrastructure planning', 'Real Estate', ['Infrastructure']],
+  ['Claire', 'Okafor', 'Okafor Appraisals', 'Appraiser', 'Real Estate', ['Referral Source']],
+  ['Bill', 'Hartley', 'Hartley Farms', 'Owner', 'Real Estate', ['Agricultural', 'Past Client']],
+  ['Ines', 'Moreau', 'Moreau Planning Group', 'Planning consultant', 'Real Estate', ['Referral Source']],
+  ['Derek', 'Lau', 'Simcoe Builders Assoc.', 'Executive director', 'Real Estate', ['Builder/Developer']],
+  ['Nadia', 'Rossi', 'Rossi Realty', 'Listing agent', 'Staging', ['Referral Source']],
+  ['Chris', 'Bauer', 'tbd', 'Homeowner', 'Staging', ['Seller']],
+  ['Amara', 'Jones', 'Coldwell Lakeshore', 'Sales representative', 'Staging', ['Referral Source']],
+  ['Stefan', 'Novak', 'Novak Moving & Storage', 'Operations', 'Staging', []],
+  ['Leah', 'Kim', 'tbd', 'Homeowner', 'Staging', ['Seller', 'Past Client']],
+  ['Pat', 'Moretti', 'Moretti Furniture Rental', 'Account manager', 'Staging', []],
+];
+
+function buildOtherContacts(): Contact[] {
+  return OTHER_CONTACTS.map(([firstName, lastName, company, title, business, customerTypes], i) => ({
+    id: `C${String(i + 1).padStart(4, '0')}`,
+    business,
+    isProspect: false,
+    firstName,
+    lastName,
+    company,
+    title,
+    phone: `905 555 02${String(i).padStart(2, '0')}`, // 555-02xx, separate from prospects' 555-01xx
+    phone2: '',
+    email: `${firstName}.${lastName}@example.com`.toLowerCase(),
+    website: '',
+    mailingAddress: '',
+    status: 'Prospect',
+    leadSource: 'Referral',
+    regions: [],
+    categories: [],
+    customerTypes,
+    followUp: false,
+    campaigns: [],
+    notes: '',
+    properties: [],
+  }));
+}
+
 export const SEED_PROSPECTS = buildSeed(110);
+export const SEED_CONTACTS: Contact[] = [...SEED_PROSPECTS, ...buildOtherContacts()];

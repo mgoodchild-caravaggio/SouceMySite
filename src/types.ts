@@ -12,18 +12,31 @@ export const REGIONS = [
   'Peterborough',
 ] as const;
 export const CATEGORIES = [
+  'Industrial Land',
+  'Residential Land',
+  'Industrial Building',
+  'Residential',
+  'Agricultural',
   'White Belt',
   'Expansion Boundary',
-  'Urban Boundary',
-  'Industrial Land',
-  'Industrial Building',
-  'Condo Land',
   'Investment Property',
-  'Agricultural',
 ] as const;
-export const CUSTOMER_TYPES = ['Buyer', 'Seller', 'Builder Developer', 'Investor'] as const;
+export const CUSTOMER_TYPES = [
+  'Buyer',
+  'Seller',
+  'Builder/Developer',
+  'Investor',
+  'Past Client',
+  'Agricultural',
+  'Finance/Lender',
+  'Referral Source',
+  'Infrastructure',
+] as const;
+
+export const BUSINESSES = ['Real Estate', 'Staging'] as const;
 
 export type Status = (typeof STATUSES)[number];
+export type Business = (typeof BUSINESSES)[number];
 export type Region = (typeof REGIONS)[number];
 export type Category = (typeof CATEGORIES)[number];
 export type CustomerType = (typeof CUSTOMER_TYPES)[number];
@@ -46,25 +59,40 @@ export interface Property extends LatLng {
   relation: 'Owns' | 'Interested in';
 }
 
-export interface Prospect {
+/** Anyone in Hub: a prospect (in the sales pipeline, with properties on the map) or another contact. */
+export interface Contact {
   id: string;
+  business: Business;
+  isProspect: boolean;
   firstName: string;
   lastName: string;
-  /** "tbd" when the prospect is an individual with no company, matching the Salesforce convention. */
+  /** "tbd" when the contact is an individual with no company, matching the Salesforce convention. */
   company: string;
+  title: string;
   phone: string;
+  phone2: string;
   email?: string;
+  website: string;
+  mailingAddress: string;
   status: Status;
   leadSource: string;
   regions: Region[];
   categories: Category[];
   customerTypes: CustomerType[];
   dealValue?: number;
+  /** ISO date (YYYY-MM-DD) of the next follow-up, if one is set. */
+  followUpOn?: string;
+  /** True when a follow-up date is set. */
   followUp: boolean;
+  assignedTo?: string;
+  archivedAt?: string;
   campaigns: string[];
   notes: string;
   properties: Property[];
 }
+
+/** The map and its components work with prospects, which are contacts marked as prospects. */
+export type Prospect = Contact;
 
 export interface Filters {
   text: string;

@@ -7,6 +7,6 @@ import { AuthGate } from './components/AuthGate';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <AuthGate>{(session) => <App userEmail={session.user.email ?? ''} />}</AuthGate>
+    <AuthGate>{(session) => <App session={session} />}</AuthGate>
   </React.StrictMode>,
 );
