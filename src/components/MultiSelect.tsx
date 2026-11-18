@@ -5,9 +5,11 @@ interface Props<T extends string> {
   options: readonly T[];
   value: T[];
   onChange: (v: T[]) => void;
+  /** How to show an option, when its value isn't the label. */
+  format?: (o: T) => string;
 }
 
-export function MultiSelect<T extends string>({ label, options, value, onChange }: Props<T>) {
+export function MultiSelect<T extends string>({ label, options, value, onChange, format = (o) => o }: Props<T>) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -44,9 +46,9 @@ export function MultiSelect<T extends string>({ label, options, value, onChange 
       {open && (
         <div className="ms-pop" role="listbox" aria-multiselectable="true">
           {options.map((o) => (
-            <label key={o} className="ms-opt">
+            <label key={format(o)} className="ms-opt">
               <input type="checkbox" checked={value.includes(o)} onChange={() => toggle(o)} />
-              <span>{o}</span>
+              <span>{format(o)}</span>
             </label>
           ))}
           {value.length > 0 && (

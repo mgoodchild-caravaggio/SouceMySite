@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from './supabase';
 
-export const ACTIVITY_KINDS = ['note', 'call', 'email', 'meeting', 'status_change', 'follow_up_done', 'created', 'archived', 'restored', 'campaign_sent', 'unsubscribed', 'bounced'] as const;
+export const ACTIVITY_KINDS = ['note', 'call', 'email', 'meeting', 'status_change', 'follow_up_done', 'created', 'archived', 'restored', 'campaign_sent', 'unsubscribed', 'bounced', 'campaign_stage'] as const;
 export type ActivityKind = (typeof ACTIVITY_KINDS)[number];
 /** Kinds people log by hand; the rest are recorded automatically. */
 export const LOGGABLE_KINDS = ['call', 'note', 'email', 'meeting'] as const;
@@ -20,6 +20,7 @@ export const KIND_LABEL: Record<ActivityKind, string> = {
   campaign_sent: 'Campaign email',
   unsubscribed: 'Unsubscribed',
   bounced: 'Email bounced',
+  campaign_stage: 'Campaign',
 };
 
 export interface Activity {

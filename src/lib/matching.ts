@@ -21,7 +21,9 @@ export type MatchKind =
   | 'listing' // an open listing that fits a requirement
   | 'property' // an owner's (unlisted) property that fits a requirement: a "would you sell?" call
   | 'active_nearby' // a builder/developer or investor with land nearby
-  | 'neighbour'; // an adjoining owner, for a land assembly
+  | 'neighbour' // an adjoining owner, for a land assembly
+  | 'in_area' // anyone with land inside a campaign's map area
+  | 'looking_here'; // a buyer whose search area covers a campaign's map area
 
 export interface MatchResult {
   contact: Contact;
@@ -350,7 +352,7 @@ function nearestProperty(c: Contact, point: LatLng): { property: Property; km: n
   return best;
 }
 
-const KIND_ORDER: Record<MatchKind, number> = { requirement: 0, listing: 0, property: 1, active_nearby: 2, neighbour: 3 };
+const KIND_ORDER: Record<MatchKind, number> = { requirement: 0, listing: 0, looking_here: 0, property: 1, in_area: 1, active_nearby: 2, neighbour: 3 };
 function sortResults(results: MatchResult[]) {
   return results.sort((a, b) => b.score - a.score || KIND_ORDER[a.kind] - KIND_ORDER[b.kind] || (a.distanceKm ?? 99) - (b.distanceKm ?? 99));
 }
@@ -361,4 +363,81 @@ export const KIND_LABEL: Record<MatchKind, string> = {
   property: 'Unlisted land',
   active_nearby: 'Active nearby',
   neighbour: 'Neighbour',
+  in_area: 'Land in area',
+  looking_here: 'Buyer looking here',
 };
+
+/** The filters and map area a campaign searches with (the shape stored in campaigns.criteria). */
+export interface CandidateCriteria {
+  statuses: string[];
+  customerTypes: string[];
+  categories: string[];
+  regions: string[];
+  area?: LatLng & { radiusKm: number };
+}
+
+/**
+ * Everyone a campaign could add: the matches for its listing or requirement (if it has one), plus land
+ * owners inside its map area and buyers searching there, narrowed by its filters. One result per
+ * contact, keeping their best score.
+ */
+export function campaignCandidates(
+  business: string,
+  criteria: CandidateCriteria,
+  subject: MatchSubject | null,
+  data: Data,
+): MatchResult[] {
+  const best = new Map<string, MatchResult>();
+  const keep = (r: MatchResult) => {
+    const cur = best.get(r.contact.id);
+    if (!cur || r.score > cur.score) best.set(r.contact.id, r);
+  };
+
+  if (subject) {
+    const found = subject.opportunity.kind === 'listing' ? matchListing(subject, data) : matchRequirement(subject, data);
+    found.forEach(keep);
+  }
+
+  const area = criteria.area;
+  if (area) {
+    const wantCats = criteria.categories;
+    const byId = new Map(data.contacts.map((c) => [c.id, c]));
+    for (const c of data.contacts) {
+      if (c.business !== business || c.archivedAt || c.id === subject?.contact.id) continue;
+      const nearest = nearestProperty(c, area);
+      if (!nearest || nearest.km > area.radiusKm) continue;
+      const catFit = wantCats.length ? wantCats.includes(nearest.property.category as never) || c.categories.some((x) => wantCats.includes(x)) : false;
+      const reasons: Reason[] = [{ text: `${nearest.property.relation === 'Owns' ? 'Owns' : nearest.property.relation} ${nearest.property.address}, ${fmtKm(nearest.km)} from the centre`, tone: 'good' }];
+      if (catFit) reasons.push({ text: nearest.property.category || c.categories.filter((x) => wantCats.includes(x)).join(', '), tone: 'good' });
+      if (nearest.property.acres) reasons.push({ text: fmtAc(nearest.property.acres), tone: 'ok' });
+      if (c.customerTypes.length) reasons.push({ text: c.customerTypes.join(', '), tone: 'ok' });
+      keep({ contact: c, kind: 'in_area', property: nearest.property, distanceKm: nearest.km, score: clamp(30 + (1 - nearest.km / area.radiusKm) * 30 + (catFit ? 15 : 0)), reasons });
+    }
+    for (const o of openOf(data.opportunities, 'requirement')) {
+      const c = byId.get(o.contactId);
+      const a = areaOf(o);
+      if (!c || !a || c.business !== business || c.archivedAt || c.id === subject?.contact.id) continue;
+      const km = haversineKm(a, area);
+      if (km > a.radiusKm + area.radiusKm) continue;
+      const catFit = wantCats.length ? o.categories.some((x) => wantCats.includes(x)) : false;
+      const reasons: Reason[] = [{ text: `Looking within ${a.radiusKm} km${o.areaLabel ? ` of ${o.areaLabel}` : ''}`, tone: 'good' }];
+      if (o.categories.length) reasons.push({ text: o.categories.join(', '), tone: catFit || !wantCats.length ? 'good' : 'ok' });
+      if (o.acresMin != null || o.acresMax != null) reasons.push({ text: rangeText(o.acresMin, o.acresMax, 'ac'), tone: 'ok' });
+      if (o.priceMax != null) reasons.push({ text: `up to ${formatPrice(o.priceMax)}`, tone: 'ok' });
+      keep({ contact: c, kind: 'looking_here', opportunity: o, distanceKm: km, score: clamp(55 + (catFit ? 20 : 0) - Math.min(15, km / 2)), reasons });
+    }
+  }
+
+  const any = (want: string[], have: string[]) => !want.length || want.some((w) => have.includes(w));
+  return sortResults(
+    [...best.values()].filter(
+      (r) =>
+        r.contact.business === business &&
+        (!criteria.statuses.length || (r.contact.isProspect && criteria.statuses.includes(r.contact.status))) &&
+        any(criteria.customerTypes, r.contact.customerTypes) &&
+        // Category and region narrow the area search; an opportunity's own matches already fit its categories.
+        (r.kind !== 'in_area' || any(criteria.categories, [...r.contact.categories, r.property?.category ?? ''])) &&
+        any(criteria.regions, r.contact.regions),
+    ),
+  );
+}

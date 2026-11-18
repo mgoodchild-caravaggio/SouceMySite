@@ -15,12 +15,48 @@ export interface Audience {
   categories: Category[];
   regions: Region[];
   campaigns: string[];
+  /** An email blast from a matching campaign: only its members (in these stages, if any are picked). */
+  memberOf?: string;
+  memberStages?: Stage[];
 }
 
 export const EMPTY_AUDIENCE: Audience = { who: 'prospects', statuses: [], customerTypes: [], categories: [], regions: [], campaigns: [] };
 
+export type CampaignKind = 'email' | 'match';
+
+/** Stages a matching campaign's members move through. */
+export const STAGES = [
+  { id: 'suggested', label: 'Suggested' },
+  { id: 'shortlisted', label: 'Shortlisted' },
+  { id: 'contacted', label: 'Contacted' },
+  { id: 'interested', label: 'Interested' },
+  { id: 'not_interested', label: 'Not interested' },
+  { id: 'offer', label: 'Offer / deal' },
+] as const;
+export type Stage = (typeof STAGES)[number]['id'];
+export const stageLabel = (s: Stage) => STAGES.find((x) => x.id === s)?.label ?? s;
+
+/** A map area: a centre and a radius. */
+export interface Area {
+  lat: number;
+  lng: number;
+  radiusKm: number;
+  label: string;
+}
+
+/** What "Find matches" searches for, on top of the campaign's opportunity (if it has one). */
+export interface Criteria {
+  statuses: Status[];
+  customerTypes: CustomerType[];
+  categories: Category[];
+  regions: Region[];
+  area?: Area;
+}
+export const EMPTY_CRITERIA: Criteria = { statuses: [], customerTypes: [], categories: [], regions: [] };
+
 export interface Campaign {
   id: string;
+  kind: CampaignKind;
   business: Business;
   name: string;
   subject: string;
@@ -34,6 +70,12 @@ export interface Campaign {
   createdBy?: string;
   createdAt: string;
   updatedAt: string;
+  /** Matching campaigns: the listing or requirement it's built around, its search, and whether it's still being worked. */
+  opportunityId?: string;
+  criteria: Criteria;
+  matchStatus: 'active' | 'closed';
+  /** Email blasts sent from a matching campaign point back to it. */
+  parentId?: string;
 }
 
 export interface CampaignStats {
@@ -50,6 +92,11 @@ export interface CampaignStats {
 
 interface CampaignRow {
   id: string;
+  kind: CampaignKind;
+  opportunity_id: string | null;
+  criteria: Partial<Criteria>;
+  match_status: 'active' | 'closed';
+  parent_id: string | null;
   business: Business;
   name: string;
   subject: string;
@@ -67,6 +114,11 @@ interface CampaignRow {
 
 const fromRow = (r: CampaignRow): Campaign => ({
   id: r.id,
+  kind: r.kind,
+  opportunityId: r.opportunity_id ?? undefined,
+  criteria: { ...EMPTY_CRITERIA, ...r.criteria },
+  matchStatus: r.match_status,
+  parentId: r.parent_id ?? undefined,
   business: r.business,
   name: r.name,
   subject: r.subject,
@@ -132,6 +184,45 @@ export async function createCampaign(business: Business, senderId: string): Prom
   return data.id as string;
 }
 
+/** A new matching campaign, optionally built around a listing or requirement. */
+export async function createMatchCampaign(business: Business, name: string, opportunityId?: string, criteria: Criteria = EMPTY_CRITERIA): Promise<string> {
+  const { data, error } = await supabase
+    .from('campaigns')
+    .insert({ business, kind: 'match', name, opportunity_id: opportunityId ?? null, criteria })
+    .select('id')
+    .single();
+  if (error) throw new Error(error.message);
+  return data.id as string;
+}
+
+/** Changes to a matching campaign (any teammate can make them). */
+export async function updateMatchCampaign(id: string, patch: { name?: string; criteria?: Criteria; matchStatus?: 'active' | 'closed' }): Promise<string> {
+  const row: Record<string, unknown> = {};
+  if (patch.name !== undefined) row.name = patch.name.trim() || 'Untitled campaign';
+  if (patch.criteria !== undefined) row.criteria = patch.criteria;
+  if (patch.matchStatus !== undefined) row.match_status = patch.matchStatus;
+  const { error } = await supabase.from('campaigns').update(row).eq('id', id);
+  return error?.message ?? '';
+}
+
+/** An email blast to a matching campaign's members: a draft email campaign that points back to it. */
+export async function createMemberBlast(parent: Campaign, senderId: string): Promise<string> {
+  const { data, error } = await supabase
+    .from('campaigns')
+    .insert({
+      business: parent.business,
+      kind: 'email',
+      parent_id: parent.id,
+      name: `${parent.name}: email`,
+      sender_id: senderId,
+      audience: { ...EMPTY_AUDIENCE, who: 'all', memberOf: parent.id, memberStages: [] },
+    })
+    .select('id')
+    .single();
+  if (error) throw new Error(error.message);
+  return data.id as string;
+}
+
 export async function saveCampaign(c: Campaign): Promise<string> {
   const { error } = await supabase
     .from('campaigns')
@@ -167,12 +258,12 @@ export async function fetchSuppressed(): Promise<Set<string>> {
 export type Exclusion = 'no email address' | 'no consent' | 'consent expired' | 'unsubscribed' | 'duplicate address';
 
 /** Splits contacts matching an audience into who will get the email and who won't (and why). Mirrors the server's checks. */
-export function resolveAudience(contacts: Contact[], business: Business, a: Audience, suppressed: Set<string>) {
+export function resolveAudience(contacts: Contact[], business: Business, a: Audience, suppressed: Set<string>, members?: Set<string>) {
   const any = <T,>(want: T[], have: T[]) => want.length === 0 || want.some((w) => have.includes(w));
   const matching = contacts.filter(
     (c) =>
       c.business === business &&
-      (a.who === 'all' || (a.who === 'prospects' ? c.isProspect : !c.isProspect)) &&
+      (a.memberOf ? !!members?.has(c.id) && !c.archivedAt : a.who === 'all' || (a.who === 'prospects' ? c.isProspect : !c.isProspect)) &&
       (!a.statuses.length || (c.isProspect && a.statuses.includes(c.status))) &&
       any(a.customerTypes, c.customerTypes) &&
       any(a.categories, c.categories) &&

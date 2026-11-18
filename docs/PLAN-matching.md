@@ -123,11 +123,12 @@ Matching runs in the browser for lists and maps, since all contacts are already 
    - scores 0–100 with reasons (green fits, amber close, red misses); missing data counts as unknown, not a miss;
    - a "Matches & nearby" panel on Real Estate contact pages: matches per open listing or requirement, and what's within 5/10/25 km of their land;
    - Match mode on the Map (`/map?match=<id>`, from "Show on map →"): centred on the land or search area, with the ranked list beside it.
-3. **Matching campaigns:**
-   - create from an opportunity or area;
-   - criteria and map, Find matches, add and remove members, stages;
-   - call list, results;
-   - today's email blasts moved inside as an action.
+3. ✅ **Matching campaigns** (built 2026-11-18):
+   - create from an opportunity ("Start a campaign" on a contact's matches) or from an area and filters;
+   - Find matches with filters and a clickable map; add singly, in bulk, from a pin, by name, from a contact page or the lists' bulk bar; remove;
+   - stages, notes, assignee and last-contacted per member, logged on the contact's timeline; stage counts, meetings booked, export;
+   - "Email members" creates an email blast to the list (consent rules unchanged); email-only campaigns live under the Email blasts tab.
+   - Not yet: searching along a route, and drawing an area (a radius around a point for now).
 4. **Ask Hub, internal data:** the chat with Hub search tools, adding to campaigns as Suggested, the spend cap and usage.
 5. **Ask Hub, outside research:** web search for builders/developers and municipal development applications, review and import as leads.
 

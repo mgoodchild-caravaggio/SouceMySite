@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { createMatchCampaign } from '../lib/campaigns';
 import { companyLabel, displayName } from '../lib/filters';
 import { KIND_LABEL, matchesForContact, nearbyFor, type MatchResult } from '../lib/matching';
 import { useOpportunities } from '../lib/opportunities';
@@ -18,6 +19,22 @@ export function MatchesPanel({ contact }: { contact: Contact }) {
   const { opportunities } = useOpportunities();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [radius, setRadius] = useState(10);
+  const [starting, setStarting] = useState('');
+  const [error, setError] = useState('');
+  const navigate = useNavigate();
+
+  // A matching campaign built on this listing or requirement, with its matches ready to add.
+  const startCampaign = async (o: (typeof groups)[number]['opportunity']) => {
+    setStarting(o.id);
+    try {
+      const who = displayName(contact);
+      const name = o.kind === 'listing' ? `Buyers for ${o.title.replace(/^Listing:\s*/, '')}` : `Land for ${who}: ${o.title}`;
+      navigate(`/campaigns/${await createMatchCampaign(contact.business, name, o.id)}`);
+    } catch (e) {
+      setError((e as Error).message);
+      setStarting('');
+    }
+  };
 
   const data = useMemo(() => ({ contacts, opportunities }), [contacts, opportunities]);
   const groups = useMemo(() => matchesForContact(contact, data), [contact, data]);
@@ -41,6 +58,7 @@ export function MatchesPanel({ contact }: { contact: Contact }) {
         <h2>Matches &amp; nearby</h2>
       </div>
 
+      {error && <p className="field-error">{error}</p>}
       {groups.length === 0 && (
         <p className="muted small">Add a listing or requirement above to see who matches. Meanwhile, here's what's near their land.</p>
       )}
@@ -55,11 +73,16 @@ export function MatchesPanel({ contact }: { contact: Contact }) {
                 {o.kind === 'listing' ? 'Who might buy ' : 'Land for '}
                 <span className="muted">“{o.title}”</span>
               </h3>
-              {results.length > 0 && (
-                <Link className="link-btn small" to={`/map?match=${o.id}`}>
-                  Show on map →
-                </Link>
-              )}
+              <div className="inline-actions">
+                {results.length > 0 && (
+                  <Link className="link-btn small" to={`/map?match=${o.id}`}>
+                    Show on map →
+                  </Link>
+                )}
+                <button type="button" className="btn small" disabled={starting === o.id} onClick={() => startCampaign(o)} title="Work these matches as a campaign: stages, notes and calls">
+                  Start a campaign
+                </button>
+              </div>
             </div>
             {o.needsDetail && <p className="muted small">This requirement is still a draft; matches will sharpen once acres, budget and area are added.</p>}
             {results.length === 0 ? (

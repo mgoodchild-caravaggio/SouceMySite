@@ -21,6 +21,8 @@ import { formatMoney } from '../lib/geo';
 import { useSession } from '../lib/session';
 import { exportContacts, useContacts } from '../lib/store';
 import { useOpportunities } from '../lib/opportunities';
+import { useCampaigns } from '../lib/campaigns';
+import { addMembers } from '../lib/members';
 import { CATEGORIES, CUSTOMER_TYPES, REGIONS, STATUSES, type Contact, type Status } from '../types';
 import { slug } from '../components/ProspectCard';
 
@@ -78,6 +80,9 @@ export default function ContactListPage({ kind }: { kind: Kind }) {
   }, [opportunities]);
   const peopleById = useMemo(() => Object.fromEntries(people.map((p) => [p.id, p])), [people]);
   const campaigns = useMemo(() => [...new Set(contacts.flatMap((c) => c.campaigns))].sort((a, b) => a.localeCompare(b)), [contacts]);
+  const { campaigns: allCampaigns } = useCampaigns(business);
+  const matchCampaigns = (allCampaigns ?? []).filter((c) => c.kind === 'match' && c.matchStatus === 'active');
+  const [bulkNote, setBulkNote] = useState('');
 
   const rows = useMemo(() => {
     const inScope = contacts.filter(
@@ -302,7 +307,7 @@ export default function ContactListPage({ kind }: { kind: Kind }) {
               setCampaignDraft('');
             }}
           >
-            <input list="campaign-names" placeholder="Add to campaign…" value={campaignDraft} onChange={(e) => setCampaignDraft(e.target.value)} />
+            <input list="campaign-names" placeholder="Add campaign tag…" aria-label="Salesforce campaign tag" value={campaignDraft} onChange={(e) => setCampaignDraft(e.target.value)} />
             <datalist id="campaign-names">
               {campaigns.map((c) => (
                 <option key={c} value={c} />
@@ -312,6 +317,27 @@ export default function ContactListPage({ kind }: { kind: Kind }) {
               Add
             </button>
           </form>
+          {matchCampaigns.length > 0 && (
+            <select
+              aria-label="Add to a matching campaign"
+              className="small-select"
+              value=""
+              onChange={async (e) => {
+                const target = matchCampaigns.find((c) => c.id === e.target.value);
+                if (!target) return;
+                const err = await addMembers(target.id, selectedRows.map((r) => ({ contactId: r.id, source: 'manual' as const })));
+                setBulkNote(err || `Added to “${target.name}” (anyone already on it was left as they were).`);
+              }}
+            >
+              <option value="">Add to matching campaign…</option>
+              {matchCampaigns.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          )}
+          {bulkNote && <span className="muted small">{bulkNote}</span>}
           {selectedRows.some((r) => !r.isProspect) && (
             <button type="button" className="btn small" onClick={() => updateMany(selectedRows.filter((r) => !r.isProspect).map((r) => r.id), { isProspect: true })}>
               Make prospect

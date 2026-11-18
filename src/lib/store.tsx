@@ -350,7 +350,7 @@ export function exportContacts(rows: Contact[], filename: string) {
   );
 }
 
-function downloadCsv(rows: string[][], filename: string) {
+export function downloadCsv(rows: string[][], filename: string) {
   const esc = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
   const blob = new Blob([rows.map((r) => r.map(esc).join(',')).join('\n')], { type: 'text/csv' });
   const a = document.createElement('a');

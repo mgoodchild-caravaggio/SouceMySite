@@ -17,6 +17,9 @@ import {
   type Audience,
   type Campaign,
   type CampaignStats,
+  STAGES,
+  stageLabel,
+  type Stage,
 } from '../lib/campaigns';
 import { displayName, formatDate } from '../lib/filters';
 import { useSession } from '../lib/session';
@@ -25,6 +28,7 @@ import { supabase } from '../lib/supabase';
 import { MERGE_FIELDS, mergeValues, unknownFields, useTemplates } from '../lib/templates';
 import { CATEGORIES, CUSTOMER_TYPES, REGIONS, STATUSES } from '../types';
 import { STATUS_LABEL } from './CampaignsPage';
+import { MatchCampaign } from './MatchCampaignPage';
 
 /** A campaign: the editor while it's a draft, the results once it's sent or scheduled. */
 export default function CampaignPage() {
@@ -45,6 +49,7 @@ export default function CampaignPage() {
         </div>
       </div>
     );
+  if (data.campaign.kind === 'match') return <MatchCampaign key={data.campaign.id} campaign={data.campaign} reload={load} />;
   return data.campaign.status === 'draft' ? <Editor initial={data.campaign} onStarted={load} /> : <Results campaign={data.campaign} stats={data.stats} reload={load} />;
 }
 
@@ -75,7 +80,26 @@ function Editor({ initial, onStarted }: { initial: Campaign; onStarted: () => vo
     fetchSuppressed().then(setSuppressed);
   }, []);
 
-  const audience = useMemo(() => resolveAudience(contacts, c.business, c.audience, suppressed), [contacts, c.business, c.audience, suppressed]);
+  // An email to a matching campaign's members: load who's on that list (in the chosen stages).
+  const [parent, setParent] = useState<{ name: string; members: { contact_id: string; stage: Stage }[] } | null>(null);
+  useEffect(() => {
+    const pid = c.audience.memberOf;
+    if (!pid) return;
+    (async () => {
+      const [{ data: camp }, { data: rows }] = await Promise.all([
+        supabase.from('campaigns').select('name').eq('id', pid).maybeSingle(),
+        supabase.from('campaign_members').select('contact_id, stage').eq('campaign_id', pid).limit(5000),
+      ]);
+      setParent({ name: camp?.name ?? 'the campaign', members: (rows ?? []) as { contact_id: string; stage: Stage }[] });
+    })();
+  }, [c.audience.memberOf]);
+  const memberIds = useMemo(() => {
+    if (!parent) return undefined;
+    const stages = c.audience.memberStages ?? [];
+    return new Set(parent.members.filter((m) => m.stage !== 'suggested' && (!stages.length || stages.includes(m.stage))).map((m) => m.contact_id));
+  }, [parent, c.audience.memberStages]);
+
+  const audience = useMemo(() => resolveAudience(contacts, c.business, c.audience, suppressed, memberIds), [contacts, c.business, c.audience, suppressed, memberIds]);
   const reasons = useMemo(() => {
     const m = new Map<string, number>();
     for (const x of audience.excluded) m.set(x.reason, (m.get(x.reason) ?? 0) + 1);
@@ -192,6 +216,27 @@ function Editor({ initial, onStarted }: { initial: Campaign; onStarted: () => vo
         <div className="detail-col">
           <section className="panel">
             <h2>1. Audience</h2>
+            {c.audience.memberOf ? (
+              <>
+                <p className="small">
+                  Members of{' '}
+                  <Link to={`/campaigns/${c.audience.memberOf}`}>
+                    <strong>{parent?.name ?? '…'}</strong>
+                  </Link>
+                  , in these stages (none picked means everyone on the list):
+                </p>
+                <div className="list-filters">
+                  <MultiSelect
+                    label="Stage"
+                    options={STAGES.filter((s) => s.id !== 'suggested').map((s) => s.id)}
+                    value={c.audience.memberStages ?? []}
+                    onChange={setAud('memberStages')}
+                    format={(id) => stageLabel(id as Stage)}
+                  />
+                </div>
+              </>
+            ) : (
+              <>
             <div className="seg" role="group" aria-label="Who">
               {(['prospects', 'all', 'other'] as const).map((w) => (
                 <button key={w} type="button" disabled={!canEdit} aria-pressed={c.audience.who === w} className={c.audience.who === w ? 'on' : ''} onClick={() => setAud('who')(w)}>
@@ -206,6 +251,8 @@ function Editor({ initial, onStarted }: { initial: Campaign; onStarted: () => vo
               <MultiSelect label="Region" options={REGIONS} value={c.audience.regions} onChange={setAud('regions')} />
               <MultiSelect label="Campaign tag" options={campaignTags} value={c.audience.campaigns} onChange={setAud('campaigns')} />
             </div>
+              </>
+            )}
             {loading ? (
               <p className="muted">Loading contacts…</p>
             ) : (
