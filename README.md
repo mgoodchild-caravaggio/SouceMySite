@@ -33,7 +33,8 @@ Open http://localhost:5173 and sign in with an invited email.
 - **Database and sign-in:** Supabase project `prospect-map` in ca-central-1 (Canada).
   - `supabase/migrations/` holds the schema. Signed-in users can read everything and change only status, follow-up and notes; anonymous requests are refused. Apply changes with `supabase db push`.
   - `supabase/seed.sql` is the fictional sample data, generated from `src/data/seed.ts` with `npm run seed:generate`.
-  - Auth settings (site URL, redirect URLs, sign-up disabled) live in `supabase/config.toml` and are applied with `supabase config push`.
+  - Auth settings (site URL, redirect URLs, sign-up disabled, email) live in `supabase/config.toml` and are applied with `supabase config push`. Run it with `.env.local` loaded (`set -a; . ./.env.local; set +a`) so the email password is included.
+- **Email:** invite and sign-in emails go through Resend from noreply@caravaggiorealestate.ca (domain verified with DNS records at Squarespace). The Resend API key is `SUPABASE_AUTH_SMTP_PASS` in `.env.local`. Limit: 30 emails an hour.
 
 ### Adding a user
 
