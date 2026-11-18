@@ -183,7 +183,7 @@ export default function App({ userEmail }: { userEmail: string }) {
               <circle cx="12" cy="10" r="2.6" fill="#fff" />
             </svg>
           </span>
-          <span>Prospect Map</span>
+          <span>Hub</span>
         </div>
 
         <div className="seg" role="tablist" aria-label="Search mode">

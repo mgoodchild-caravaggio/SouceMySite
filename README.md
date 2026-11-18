@@ -1,6 +1,6 @@
-# Prospect Map
+# Hub
 
-A map-first CRM prototype for Caravaggio Real Estate prospects, laid out like realtor.ca: map on the left, results on the right.
+Caravaggio Real Estate's internal app, at https://hub.caravaggiorealestate.ca. Its first tool is a map-first prospect CRM laid out like realtor.ca: map on the left, results on the right.
 
 - **Near a place**: search a town, address or postal code, or click the map. Prospects with a property inside the radius are listed, closest first.
 - **Along a route**: set a start (or use your location) and a destination. Prospects with a property within the corridor are listed in the order you'd reach them.
@@ -29,13 +29,13 @@ Open http://localhost:5173 and sign in with an invited email.
 
 ## Hosting
 
-- **App:** Railway project `prospect-map`, service `web`, at https://web-production-2ef32975.up.railway.app. Railway runs `npm run build` and serves `dist/` with `npm start`. `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` are set as service variables. Deploy with `railway up --service web`.
+- **App:** Railway project `prospect-map`, service `web`, at https://hub.caravaggiorealestate.ca (custom domain; the Railway address https://web-production-2ef32975.up.railway.app also works). Pushing to `main` deploys automatically. Railway runs `npm run build` and serves `dist/` with `npm start`. `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` are set as service variables. `railway up --service web` deploys local changes without pushing.
 - **Database and sign-in:** Supabase project `prospect-map` in ca-central-1 (Canada).
   - `supabase/migrations/` holds the schema. Signed-in users can read everything and change only status, follow-up and notes; anonymous requests are refused. Apply changes with `supabase db push`.
   - `supabase/seed.sql` is the fictional sample data, generated from `src/data/seed.ts` with `npm run seed:generate`.
   - Auth settings (site URL, redirect URLs, sign-up disabled, email) live in `supabase/config.toml` and are applied with `supabase config push`. Run it with `.env.local` loaded (`set -a; . ./.env.local; set +a`) so the email password is included.
-- **Email:** invite and sign-in emails go through Resend from noreply@caravaggiorealestate.ca (domain verified with DNS records at Squarespace). The Resend API key is `SUPABASE_AUTH_SMTP_PASS` in `.env.local`. Limit: 30 emails an hour.
-- **Microsoft sign-in:** Entra app registration "Prospect Map" in the Caravaggio tenant. Its client ID, secret and tenant URL (`https://login.microsoftonline.com/<tenant-id>`, no `/v2.0`) are `SUPABASE_AUTH_EXTERNAL_AZURE_*` in `.env.local`. The client secret expires after 24 months and must be renewed in Entra, then pushed with `supabase config push`.
+- **Email:** invite and sign-in emails go through Resend from "Hub" <noreply@caravaggiorealestate.ca> (domain verified with DNS records at Squarespace). The Resend API key is `SUPABASE_AUTH_SMTP_PASS` in `.env.local`. Limit: 30 emails an hour.
+- **Microsoft sign-in:** Entra app registration "Prospect Map" (shown to users on Microsoft's consent screen; rename it to "Hub" in Entra if wanted) in the Caravaggio tenant. Its client ID, secret and tenant URL (`https://login.microsoftonline.com/<tenant-id>`, no `/v2.0`) are `SUPABASE_AUTH_EXTERNAL_AZURE_*` in `.env.local`. The client secret expires after 24 months and must be renewed in Entra, then pushed with `supabase config push`.
 
 ### Adding a user
 
