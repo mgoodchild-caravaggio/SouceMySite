@@ -673,3 +673,42 @@ a.theme-btn { text-decoration: none; }
 .field-chips button { border: 1px dashed var(--line-strong); background: var(--surface); border-radius: 999px; padding: 3px 9px; font-size: 12px; color: var(--muted); }
 .field-chips button:hover { color: var(--accent); border-color: var(--accent); }
 .signature-field textarea { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; resize: vertical; }
+
+/* Campaigns */
+.camp-status { font-weight: 600; border-color: transparent; }
+.cs-draft { background: var(--s-prospect-bg); color: var(--s-prospect-fg); }
+.cs-scheduled { background: var(--s-contacted-bg); color: var(--s-contacted-fg); }
+.cs-sending { background: var(--s-lead-bg); color: var(--s-lead-fg); }
+.cs-sent { background: var(--s-active-bg); color: var(--s-active-fg); }
+.cs-cancelled { background: var(--s-unqualified-bg); color: var(--s-unqualified-fg); }
+.campaign-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.title-input { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; border: 1px solid transparent; border-radius: 8px; padding: 2px 6px; margin-left: -7px; background: transparent; width: 100%; }
+.title-input:hover:not(:disabled) { border-color: var(--line); }
+.title-input:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.audience-summary { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.hero-line { margin: 0; font-size: 15px; }
+.hero-line strong { font-size: 24px; margin-right: 4px; }
+.recipient-list { list-style: none; margin: 0; padding: 0; max-height: 260px; overflow: auto; width: 100%; border: 1px solid var(--line); border-radius: 8px; }
+.recipient-list li { padding: 6px 10px; border-bottom: 1px solid var(--line-soft); }
+.recipient-list a { color: var(--accent); font-weight: 600; text-decoration: none; }
+.preview-panel select { height: 30px; border: 1px solid var(--line); border-radius: 8px; padding: 0 8px; font-size: 13px; max-width: 220px; }
+.email-preview { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.ep-meta { padding: 10px 14px; background: var(--surface-2); border-bottom: 1px solid var(--line); font-size: 13px; display: flex; flex-direction: column; gap: 2px; overflow-wrap: anywhere; }
+.ep-subject { font-weight: 700; font-size: 15px; margin-top: 4px; }
+.ep-body { padding: 16px; line-height: 1.55; overflow-wrap: anywhere; }
+.ep-body p { margin: 0 0 12px; white-space: pre-wrap; }
+.ep-sig { margin-top: 16px !important; color: var(--muted); }
+.ep-footer { margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); line-height: 1.5; }
+.stat-tiles { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
+.stat-tile { display: flex; flex-direction: column; gap: 2px; padding: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); }
+.stat-tile strong { font-size: 24px; font-variant-numeric: tabular-nums; }
+.send-delivered, .send-sent { background: var(--s-active-bg); color: var(--s-active-fg); border-color: transparent; }
+.send-queued { background: var(--s-prospect-bg); color: var(--s-prospect-fg); border-color: transparent; }
+.send-bounced, .send-failed, .send-complained { background: var(--s-unqualified-bg); color: var(--s-unqualified-fg); border-color: transparent; }
+.send-skipped { background: var(--s-lead-bg); color: var(--s-lead-fg); border-color: transparent; }
+.archive-link { align-self: center; }
+@media (max-width: 1100px) { .campaign-grid { grid-template-columns: 1fr; } .stat-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 860px) {
+  .nav a.desktop-only { display: none; }
+  .stat-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

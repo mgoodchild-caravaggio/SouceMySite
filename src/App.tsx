@@ -8,6 +8,8 @@ import { ThemeButton } from './components/ThemeButton';
 import MapPage from './pages/MapPage';
 import DashboardPage from './pages/DashboardPage';
 import SettingsPage from './pages/SettingsPage';
+import CampaignsPage from './pages/CampaignsPage';
+import CampaignPage from './pages/CampaignPage';
 import ArchivePage from './pages/ArchivePage';
 import ContactListPage from './pages/ContactListPage';
 import ContactPage from './pages/ContactPage';
@@ -36,6 +38,8 @@ export default function App({ session }: { session: Session }) {
               <Route path="contacts/:id" element={<ContactPage />} />
               <Route path="archive" element={<ArchivePage />} />
               <Route path="settings" element={<SettingsPage />} />
+              <Route path="campaigns" element={<CampaignsPage />} />
+              <Route path="campaigns/:id" element={<CampaignPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
           </Routes>
@@ -55,7 +59,8 @@ const NAV = [
   { to: '/map', label: 'Map', icon: 'M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12Zm0-9.4a2.6 2.6 0 1 1 0-5.2 2.6 2.6 0 0 1 0 5.2Z' },
   { to: '/prospects', label: 'Prospects', icon: 'M3 5h18v2H3V5Zm0 6h18v2H3v-2Zm0 6h12v2H3v-2Z' },
   { to: '/contacts', label: 'Contacts', icon: 'M16 11a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm-8 1a3 3 0 1 0-3-3 3 3 0 0 0 3 3Zm8 1c-2.7 0-8 1.3-8 4v3h16v-3c0-2.7-5.3-4-8-4Zm-8 .1C5.6 13.3 1 14.5 1 17v3h5v-3c0-1.5.8-2.8 2-3.9Z' },
-  { to: '/archive', label: 'Archive', icon: 'M20 6H4V4h16v2Zm-1 2H5v12h14V8Zm-9 3h4v2h-4v-2Z' },
+  { to: '/campaigns', label: 'Campaigns', icon: 'M2 5.5A1.5 1.5 0 0 1 3.5 4h17A1.5 1.5 0 0 1 22 5.5v13a1.5 1.5 0 0 1-1.5 1.5h-17A1.5 1.5 0 0 1 2 18.5v-13Zm2.2.5L12 11.2 19.8 6H4.2ZM20 7.9l-8 5.3-8-5.3V18h16V7.9Z' },
+  { to: '/archive', label: 'Archive', desktopOnly: true, icon: 'M20 6H4V4h16v2Zm-1 2H5v12h14V8Zm-9 3h4v2h-4v-2Z' },
 ];
 
 /** Sidebar (bottom bar on phones) with the business switch, around every page. */
@@ -85,7 +90,12 @@ function Shell() {
 
         <nav className="nav">
           {NAV.map((n) => (
-            <NavLink key={n.to} to={n.to} end={n.to === '/'} className={({ isActive }) => (isActive ? 'active' : '')}>
+            <NavLink
+              key={n.to}
+              to={n.to}
+              end={n.to === '/'}
+              className={({ isActive }) => [isActive ? 'active' : '', 'desktopOnly' in n && n.desktopOnly ? 'desktop-only' : ''].join(' ')}
+            >
               <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
                 <path d={n.icon} fill="currentColor" />
               </svg>

@@ -86,7 +86,7 @@ Sends, opens, clicks, replies and meetings also appear in each contact's activit
    - Suppression list.
 2. ✅ **Calendar** (built 2026-11-18): the Today panel, meetings on contact pages, and Schedule from Hub with free/busy.
 3. ✅ **Templates and one-off emails** (built 2026-11-18): from Outlook.
-4. **Campaigns** through Resend: composer, consent-gated audience, test send, schedule, tracking, unsubscribe page and results.
+4. ✅ **Campaigns** (built 2026-11-18; first real send waits on the brokerage details, the Resend webhook and Resend Pro): through Resend: composer, consent-gated audience, test send, schedule, tracking, unsubscribe page and results.
 5. **Drip sequences:** builder, enrolment, scheduled sending, and automatic stops (reply, booking, unsubscribe, status).
 
 Steps 2 and 3 only need step 1. Step 5 builds on step 4.

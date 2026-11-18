@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { TemplateManager } from '../components/TemplateManager';
+import { footerReady, useOrgSettings } from '../lib/campaigns';
 import { formatDate } from '../lib/filters';
 import { callFunction, connectOutlook, useOutlookConnections } from '../lib/outlook';
 import { useSession } from '../lib/session';
@@ -187,6 +188,8 @@ export default function SettingsPage() {
         )}
       </section>
 
+      <BrokerageDetails isAdmin={profile.role === 'admin'} />
+
       <TemplateManager />
 
       <section className="panel">
@@ -213,5 +216,59 @@ export default function SettingsPage() {
         )}
       </section>
     </div>
+  );
+}
+
+/** The brokerage details every marketing email must show (CASL). Admins edit; everyone can see them. */
+function BrokerageDetails({ isAdmin }: { isAdmin: boolean }) {
+  const { org, save } = useOrgSettings();
+  const [draft, setDraft] = useState<typeof org>(null);
+  const [msg, setMsg] = useState('');
+  const value = draft ?? org;
+  if (!value) return null;
+  const set = (k: keyof NonNullable<typeof org>) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    setDraft({ ...value, [k]: e.target.value });
+    setMsg('');
+  };
+  return (
+    <section className="panel" id="brokerage">
+      <div className="panel-head">
+        <h2>Brokerage details for marketing email</h2>
+        {!footerReady(org) && <span className="consent-badge c-unsubscribed">Needed before sending</span>}
+      </div>
+      <p className="muted small">Canada's anti-spam law requires these at the bottom of every campaign email, next to the unsubscribe link.</p>
+      <form
+        className="form-grid"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          const err = await save(value);
+          setMsg(err ? `Couldn't save: ${err}` : 'Saved.');
+          if (!err) setDraft(null);
+        }}
+      >
+        <label className="field">
+          <span>Brokerage legal name</span>
+          <input value={value.brokerageName} disabled={!isAdmin} onChange={set('brokerageName')} placeholder="e.g. Caravaggio Real Estate Inc., Brokerage" />
+        </label>
+        <label className="field">
+          <span>Phone, email or website</span>
+          <input value={value.contactLine} disabled={!isAdmin} onChange={set('contactLine')} placeholder="e.g. 905 555 0100 · caravaggiorealestate.ca" />
+        </label>
+        <label className="field span-2">
+          <span>Mailing address</span>
+          <input value={value.mailingAddress} disabled={!isAdmin} onChange={set('mailingAddress')} placeholder="Street, city, province, postal code" />
+        </label>
+        {isAdmin ? (
+          <div className="span-2 inline-actions">
+            <button type="submit" className="btn small primary" disabled={!draft}>
+              Save details
+            </button>
+            {msg && <span className="muted small" role="status">{msg}</span>}
+          </div>
+        ) : (
+          <p className="muted small span-2">Only admins can change these.</p>
+        )}
+      </form>
+    </section>
   );
 }

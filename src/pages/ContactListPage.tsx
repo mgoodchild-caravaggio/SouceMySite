@@ -139,9 +139,14 @@ export default function ContactListPage({ kind }: { kind: Kind }) {
             {loading ? 'Loading…' : `${rows.length} ${noun}${rows.length === 1 ? '' : 's'} · ${business}`}
           </span>
         </div>
-        <button type="button" className="btn primary" onClick={() => setCreating(true)}>
-          + New {kind === 'prospects' || tab === 'prospects' ? 'prospect' : 'contact'}
-        </button>
+        <div className="inline-actions">
+          <Link className="link-btn archive-link" to="/archive">
+            Archive
+          </Link>
+          <button type="button" className="btn primary" onClick={() => setCreating(true)}>
+            + New {kind === 'prospects' || tab === 'prospects' ? 'prospect' : 'contact'}
+          </button>
+        </div>
       </header>
 
       {kind === 'contacts' && (

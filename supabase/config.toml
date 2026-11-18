@@ -440,3 +440,15 @@ enabled = true
 # Microsoft redirects the browser here without a Hub session; the signed state proves who it is.
 [functions.outlook-callback]
 verify_jwt = false
+
+# Called by the scheduled job with a shared secret, not a user session.
+[functions.campaign-worker]
+verify_jwt = false
+
+# Called by Resend; the request is verified with its signing secret.
+[functions.resend-webhook]
+verify_jwt = false
+
+# Recipients unsubscribe without signing in; the secret token in their link identifies them.
+[functions.unsubscribe]
+verify_jwt = false
