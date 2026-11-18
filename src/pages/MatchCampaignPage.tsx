@@ -586,7 +586,9 @@ interface RowProps {
 /** One person on the list: their stage, why they're here, a note, and ways to reach them. */
 function MemberRow({ m, c, highlighted, disabled, people, onUpdate, onRemove, onSchedule, rowRef }: RowProps) {
   const [note, setNote] = useState(m.note);
-  useEffect(() => setNote(m.note), [m.note]);
+  useEffect(() => {
+    setNote(m.note);
+  }, [m.note]);
   return (
     <li ref={rowRef} className={`member-row st-${m.stage} ${highlighted ? 'highlight' : ''}`}>
       <span className={`score ${m.score != null ? `s${Math.min(9, Math.floor(m.score / 10))}` : 'none'}`} title={m.score != null ? `Match score ${m.score} of 100` : 'Added by hand'}>

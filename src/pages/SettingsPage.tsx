@@ -4,7 +4,9 @@ import { TemplateManager } from '../components/TemplateManager';
 import { footerReady, useOrgSettings } from '../lib/campaigns';
 import { formatDate } from '../lib/filters';
 import { callFunction, connectOutlook, useOutlookConnections } from '../lib/outlook';
+import { aiAdmin, useAiStatus } from '../lib/askHub';
 import { useSession } from '../lib/session';
+import { supabase } from '../lib/supabase';
 
 interface CheckResult {
   mailbox: string;
@@ -190,6 +192,8 @@ export default function SettingsPage() {
 
       <BrokerageDetails isAdmin={profile.role === 'admin'} />
 
+      <AskHubSettings isAdmin={profile.role === 'admin'} />
+
       <TemplateManager />
 
       <section className="panel">
@@ -269,6 +273,150 @@ function BrokerageDetails({ isAdmin }: { isAdmin: boolean }) {
           <p className="muted small span-2">Only admins can change these.</p>
         )}
       </form>
+    </section>
+  );
+}
+
+/** Ask Hub: on or off, the Anthropic API key (stored encrypted on the server), the monthly cap and usage. */
+function AskHubSettings({ isAdmin }: { isAdmin: boolean }) {
+  const { status, reload } = useAiStatus();
+  const [key, setKey] = useState('');
+  const [cap, setCap] = useState('');
+  const [busy, setBusy] = useState('');
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [recent, setRecent] = useState<{ created_at: string; question: string; cost_usd: number; error: string | null }[]>([]);
+
+  useEffect(() => {
+    supabase
+      .from('ai_requests')
+      .select('created_at, question, cost_usd, error')
+      .order('created_at', { ascending: false })
+      .limit(8)
+      .then(({ data }) => setRecent((data ?? []) as typeof recent));
+  }, [status?.monthSpendUsd]);
+
+  if (!status) return null;
+  const run = async (label: string, body: Record<string, unknown>, ok: string) => {
+    setBusy(label);
+    setMsg(null);
+    try {
+      await aiAdmin(body);
+      setMsg({ ok: true, text: ok });
+      setKey('');
+      setCap('');
+      await reload();
+    } catch (e) {
+      setMsg({ ok: false, text: (e as Error).message });
+    } finally {
+      setBusy('');
+    }
+  };
+  const pct = status.monthlyCapUsd ? Math.min(100, Math.round((status.monthSpendUsd / status.monthlyCapUsd) * 100)) : 0;
+
+  return (
+    <section className="panel" id="ask-hub">
+      <div className="panel-head">
+        <h2>Ask Hub (AI assistant)</h2>
+        <span className={`tag ${status.enabled && status.keySet ? 'opp-open' : ''}`}>{status.enabled && status.keySet ? 'On' : 'Off'}</span>
+      </div>
+      <p className="muted small">
+        Ask Hub answers questions about contacts, land, buyers and campaigns using Claude ({status.model}). The records it looks up are sent to Anthropic to answer;
+        Anthropic doesn't train on API data. It never changes anything without a click. Mention this in Caravaggio's privacy notice before turning it on.
+      </p>
+
+      <div className="ai-usage">
+        <div>
+          <strong>${status.monthSpendUsd.toFixed(2)}</strong> of ${status.monthlyCapUsd.toFixed(0)} this month
+        </div>
+        <div className="meter" role="meter" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label="Share of the monthly cap used">
+          <span style={{ width: `${pct}%` }} className={pct >= 90 ? 'hot' : ''} />
+        </div>
+        <span className="muted small">Questions stop when the cap is reached, until next month or until the cap is raised. A typical question costs 5–15¢.</span>
+      </div>
+
+      {isAdmin ? (
+        <div className="form-grid">
+          <form
+            className="field span-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              run('key', { action: 'set_key', apiKey: key }, 'Key checked with Anthropic and saved.');
+            }}
+          >
+            <span>Anthropic API key {status.keySet && <span className="muted">(saved: ends in {status.keyHint})</span>}</span>
+            <div className="inline-actions">
+              <input
+                type="password"
+                autoComplete="off"
+                spellCheck={false}
+                value={key}
+                onChange={(e) => setKey(e.target.value)}
+                placeholder={status.keySet ? 'Paste a new key to replace it' : 'sk-ant-…'}
+                style={{ flex: 1 }}
+              />
+              <button type="submit" className="btn small" disabled={!key.trim() || !!busy}>
+                {busy === 'key' ? 'Checking…' : status.keySet ? 'Replace' : 'Save key'}
+              </button>
+              {status.keySet && (
+                <button type="button" className="link-btn tl-delete small" disabled={!!busy} onClick={() => run('remove', { action: 'remove_key' }, 'Key removed and Ask Hub switched off.')}>
+                  Remove
+                </button>
+              )}
+            </div>
+            <span className="muted small">Create one in the Anthropic Console (console.anthropic.com → API keys). It's encrypted on Hub's server and never shown again.</span>
+          </form>
+          <form
+            className="field"
+            onSubmit={(e) => {
+              e.preventDefault();
+              run('cap', { action: 'update', monthlyCapUsd: Number(cap) }, 'Monthly cap saved.');
+            }}
+          >
+            <span>Monthly cap (US$)</span>
+            <div className="inline-actions">
+              <input type="number" min={0} max={10000} step={5} value={cap} onChange={(e) => setCap(e.target.value)} placeholder={status.monthlyCapUsd.toFixed(0)} />
+              <button type="submit" className="btn small" disabled={cap === '' || !!busy}>
+                Save
+              </button>
+            </div>
+          </form>
+          <div className="field">
+            <span>Ask Hub</span>
+            <div className="inline-actions">
+              <button
+                type="button"
+                className={`btn small ${status.enabled ? '' : 'primary'}`}
+                disabled={!!busy || (!status.enabled && !status.keySet)}
+                title={!status.keySet ? 'Add a key first' : undefined}
+                onClick={() => run('toggle', { action: 'update', enabled: !status.enabled }, status.enabled ? 'Ask Hub switched off.' : 'Ask Hub switched on.')}
+              >
+                {status.enabled ? 'Switch off' : 'Switch on'}
+              </button>
+            </div>
+          </div>
+          {msg && (
+            <p className={`span-2 small ${msg.ok ? 'muted' : 'field-error'}`} role="status">
+              {msg.text}
+            </p>
+          )}
+        </div>
+      ) : (
+        <p className="muted small">Only admins can change these.</p>
+      )}
+
+      {recent.length > 0 && (
+        <details className="ai-recent">
+          <summary className="small">{isAdmin ? 'Recent questions (everyone)' : 'Your recent questions'}</summary>
+          <ul>
+            {recent.map((r, i) => (
+              <li key={i} className="small">
+                <span className="muted">{formatDate(r.created_at)}</span> {r.question || '(follow-up step)'} <span className="muted">· ${Number(r.cost_usd).toFixed(3)}</span>
+                {r.error && <span className="field-error"> · {r.error}</span>}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
     </section>
   );
 }

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { AskHub } from './components/AskHub';
 import { BrowserRouter, NavLink, Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import { SessionProvider, useSession } from './lib/session';
@@ -106,6 +107,8 @@ function Shell() {
             </NavLink>
           ))}
         </nav>
+
+        <AskHub />
 
         <div className="sidebar-tools">
           <ThemeButton />

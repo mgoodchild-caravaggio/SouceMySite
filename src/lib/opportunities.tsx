@@ -108,6 +108,7 @@ interface Row {
 const u = <T,>(v: T | null) => v ?? undefined;
 const num = (v: number | string | null) => (v == null ? undefined : Number(v));
 
+export const opportunityFromRow = (r: Row): Opportunity => fromRow(r);
 const fromRow = (r: Row): Opportunity => ({
   id: r.id,
   contactId: r.contact_id,

@@ -129,7 +129,12 @@ Matching runs in the browser for lists and maps, since all contacts are already 
    - stages, notes, assignee and last-contacted per member, logged on the contact's timeline; stage counts, meetings booked, export;
    - "Email members" creates an email blast to the list (consent rules unchanged); email-only campaigns live under the Email blasts tab.
    - Not yet: searching along a route, and drawing an area (a radius around a point for now).
-4. **Ask Hub, internal data:** the chat with Hub search tools, adding to campaigns as Suggested, the spend cap and usage.
+4. ✅ **Ask Hub, internal data** (built 2026-11-18, off until a key is added):
+   - an **Ask Hub** button in the sidebar opens a chat panel on any page; it knows which contact, campaign or match the user is looking at;
+   - Claude (Opus 5.5) works through Hub's own tools: search contacts (filters, near a place, follow-ups), get a contact, locate a place, list listings/requirements, find matches, nearby, list campaigns and their members;
+   - the tools run in the browser over the data Hub already has, with the user's own permissions; the `ask-hub` function holds the key, checks the monthly cap, calls Claude and logs tokens and cost in `ai_requests`;
+   - it can only *propose* adding people to a campaign (as Suggested); the user clicks to accept;
+   - Settings → Ask Hub (admins): add, replace or remove the key (checked with Anthropic, stored encrypted, never shown again), switch on/off, monthly cap (default $50), usage meter and recent questions.
 5. **Ask Hub, outside research:** web search for builders/developers and municipal development applications, review and import as leads.
 
 Steps 1–3 deliver the core buyer/seller matching without any AI cost. Steps 4–5 add the assistant on top, using the same matching tools.
