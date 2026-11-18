@@ -2,7 +2,9 @@ import L from 'leaflet';
 import { useEffect, useMemo, useState } from 'react';
 import { MapContainer, Marker, TileLayer, Tooltip, useMap } from 'react-leaflet';
 import { Link, useNavigate } from 'react-router-dom';
+import { AgendaPanel } from '../components/AgendaPanel';
 import { slug } from '../components/ProspectCard';
+import { ScheduleDialog } from '../components/ScheduleDialog';
 import { KIND_LABEL, logActivity, useRecentActivity } from '../lib/activities';
 import { companyLabel, displayName, followUpState, formatDate, todayIso } from '../lib/filters';
 import { formatMoney } from '../lib/geo';
@@ -40,6 +42,8 @@ export default function DashboardPage() {
   const { profile, people, business } = useSession();
   const { contacts, loading, update, touchActivity } = useContacts();
   const feed = useRecentActivity(business, 15);
+  const [scheduling, setScheduling] = useState<Contact | null>(null);
+  const [agendaKey, setAgendaKey] = useState(0);
   const peopleById = useMemo(() => Object.fromEntries(people.map((p) => [p.id, p])), [people]);
 
   const inBusiness = useMemo(() => contacts.filter((c) => c.business === business), [contacts, business]);
@@ -160,6 +164,9 @@ export default function DashboardPage() {
                                 Call
                               </a>
                             )}
+                            <button type="button" className="btn small" onClick={() => setScheduling(c)}>
+                              Schedule
+                            </button>
                             <button type="button" className="btn small primary" onClick={() => done(c)}>
                               Done
                             </button>
@@ -206,6 +213,7 @@ export default function DashboardPage() {
         </section>
         </div>
         <div className="dash-col">
+        <AgendaPanel refreshKey={agendaKey} />
         <section className="panel dash-pipeline">
           <div className="panel-head">
             <h2>Pipeline</h2>
@@ -272,6 +280,20 @@ export default function DashboardPage() {
 
         </div>
       </div>
+
+      {scheduling && (
+        <ScheduleDialog
+          contact={scheduling}
+          onClose={() => setScheduling(null)}
+          onScheduled={async (_, followUpDay) => {
+            const c = scheduling;
+            if (followUpDay) await update(c.id, { followUpOn: followUpDay });
+            touchActivity(c.id, new Date().toISOString());
+            setAgendaKey((k) => k + 1);
+            feed.reload();
+          }}
+        />
+      )}
     </div>
   );
 }

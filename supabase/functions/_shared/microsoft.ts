@@ -63,8 +63,16 @@ export async function graphToken(userId: string): Promise<string> {
   const db = adminClient();
   const { data: conn } = await db.from('outlook_connections').select('refresh_token').eq('user_id', userId).maybeSingle();
   if (!conn) throw new HttpError(409, 'Connect Outlook first (Settings → Outlook).');
+  let refreshToken: string;
   try {
-    const t = await tokenRequest({ grant_type: 'refresh_token', refresh_token: await decrypt(conn.refresh_token), scope: SCOPES });
+    refreshToken = await decrypt(conn.refresh_token);
+  } catch {
+    const message = 'The saved Outlook connection could not be read. Please reconnect.';
+    await db.from('outlook_connections').update({ last_error: message }).eq('user_id', userId);
+    throw new HttpError(409, message);
+  }
+  try {
+    const t = await tokenRequest({ grant_type: 'refresh_token', refresh_token: refreshToken, scope: SCOPES });
     await db
       .from('outlook_connections')
       .update({
@@ -91,4 +99,31 @@ export async function graph<T>(accessToken: string, path: string, init: RequestI
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new HttpError(502, `Outlook said: ${body.error?.message ?? res.statusText}`);
   return body as T;
+}
+
+/** Hub works in Toronto time; Graph returns and accepts wall-clock times in this zone. */
+export const TIME_ZONE = 'America/Toronto';
+export const tzHeader = { Prefer: `outlook.timezone="${TIME_ZONE}"` };
+
+/** Accepts "YYYY-MM-DDTHH:mm" (Toronto wall time) and rejects anything else. */
+export function wallTime(value: unknown, field: string): string {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(value)) {
+    throw new HttpError(400, `${field} must look like 2026-11-20T10:00`);
+  }
+  return value.length === 16 ? `${value}:00` : value;
+}
+
+/** Converts a Toronto wall time to a UTC ISO string (handles daylight saving). */
+export function torontoToUtc(wall: string): string {
+  const [d, t] = wall.split('T');
+  const [y, mo, da] = d.split('-').map(Number);
+  const [h, mi] = t.split(':').map(Number);
+  const guess = Date.UTC(y, mo - 1, da, h, mi);
+  // Find Toronto's offset at that moment, then correct the guess.
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: TIME_ZONE, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+  }).formatToParts(new Date(guess));
+  const get = (k: string) => Number(parts.find((p) => p.type === k)!.value);
+  const asToronto = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'));
+  return new Date(guess + (guess - asToronto)).toISOString();
 }

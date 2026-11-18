@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ConsentPanel } from '../components/ConsentPanel';
 import { ContactForm } from '../components/ContactForm';
+import { MeetingsPanel } from '../components/MeetingsPanel';
 import { Confirm } from '../components/Dialog';
 import { PropertiesMap, PropertyEditor } from '../components/PropertyEditor';
 import { slug } from '../components/ProspectCard';
@@ -309,6 +310,16 @@ export default function ContactPage() {
               )}
             </section>
           )}
+
+          <MeetingsPanel
+            contact={contact}
+            disabled={isArchived}
+            onChanged={async (followUpDay) => {
+              if (followUpDay) await store.update(contact.id, { followUpOn: followUpDay });
+              await reloadActivities();
+              store.touchActivity(contact.id, new Date().toISOString());
+            }}
+          />
 
           <section className="panel">
             <h2>Activity</h2>

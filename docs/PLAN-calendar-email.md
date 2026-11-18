@@ -84,7 +84,7 @@ Sends, opens, clicks, replies and meetings also appear in each contact's activit
    - Connect Outlook.
    - Consent fields and a consent editor on contacts.
    - Suppression list.
-2. **Calendar:** the Today panel, meetings on contact pages, and Schedule from Hub with free/busy.
+2. ✅ **Calendar** (built 2026-11-18): the Today panel, meetings on contact pages, and Schedule from Hub with free/busy.
 3. **Templates and one-off emails** from Outlook.
 4. **Campaigns** through Resend: composer, consent-gated audience, test send, schedule, tracking, unsubscribe page and results.
 5. **Drip sequences:** builder, enrolment, scheduled sending, and automatic stops (reply, booking, unsubscribe, status).
