@@ -119,7 +119,10 @@ Matching runs in the browser for lists and maps, since all contacts are already 
    - listings and requirements on contact pages;
    - a requirement editor with a map area picker;
    - draft requirements for the 159 existing buyers.
-2. **Matching engine** and the **"Matches & nearby" panel** on contact pages, plus Match mode on the Map.
+2. ✅ **Matching engine** (built 2026-11-18):
+   - scores 0–100 with reasons (green fits, amber close, red misses); missing data counts as unknown, not a miss;
+   - a "Matches & nearby" panel on Real Estate contact pages: matches per open listing or requirement, and what's within 5/10/25 km of their land;
+   - Match mode on the Map (`/map?match=<id>`, from "Show on map →"): centred on the land or search area, with the ranked list beside it.
 3. **Matching campaigns:**
    - create from an opportunity or area;
    - criteria and map, Find matches, add and remove members, stages;

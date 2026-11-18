@@ -1,6 +1,6 @@
 import { displayName } from '../lib/filters';
 import L from 'leaflet';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Circle, MapContainer, Marker, Polyline, TileLayer, Tooltip, useMap, useMapEvents } from 'react-leaflet';
 import { formatMoney, metresPerPixel } from '../lib/geo';
 import type { LatLng, Match, Mode, Place, RouteResult } from '../types';
@@ -33,6 +33,8 @@ const SOUTHERN_ONTARIO: L.LatLngBoundsExpression = [
 ];
 
 export function MapView(props: Props) {
+  // Becomes true once the container has a size; until then Leaflet can't fit anything properly.
+  const [sized, setSized] = useState(false);
   return (
     <MapContainer bounds={SOUTHERN_ONTARIO} className="map" zoomControl={false} preferCanvas={false}>
       <TileLayer
@@ -40,9 +42,9 @@ export function MapView(props: Props) {
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
       <ZoomControlRight />
-      <SizeWatcher />
+      <SizeWatcher onSized={() => setSized(true)} />
       <ClickHandler onClick={props.onMapClick} />
-      <Viewport {...props} />
+      {sized && <Viewport {...props} />}
       <SearchShapes {...props} />
       <Pins {...props} />
     </MapContainer>
@@ -61,7 +63,7 @@ function ZoomControlRight() {
 }
 
 /** Keeps Leaflet in sync with its container, which has no size yet on first render and changes on mobile. */
-function SizeWatcher() {
+function SizeWatcher({ onSized }: { onSized: () => void }) {
   const map = useMap();
   useEffect(() => {
     const el = map.getContainer();
@@ -71,10 +73,14 @@ function SizeWatcher() {
       if (!fitted && el.clientHeight > 0) {
         fitted = true;
         map.fitBounds(SOUTHERN_ONTARIO);
+        // The viewport mounts only now, so a search area set before the map had a size (a deep link
+        // such as match mode) is fitted after this default view, not overwritten by it.
+        onSized();
       }
     });
     ro.observe(el);
     return () => ro.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map]);
   return null;
 }
@@ -88,10 +94,15 @@ function ClickHandler({ onClick }: { onClick: (p: LatLng) => void }) {
 function Viewport({ mode, center, radiusKm, route, origin, destination, selectedId, pins }: Props) {
   const map = useMap();
 
+  // The first fit jumps rather than flies: a fly started while the page is still laying out gets
+  // cut short by Leaflet's resize handling and leaves the map zoomed out.
+  const flown = useRef(false);
   useEffect(() => {
     if (mode !== 'near' || !center) return;
     const bounds = L.latLng(center.lat, center.lng).toBounds(radiusKm * 2000 * 1.15);
-    map.flyToBounds(bounds, { duration: 0.6 });
+    if (flown.current) map.flyToBounds(bounds, { duration: 0.6 });
+    else map.fitBounds(bounds, { animate: false });
+    flown.current = true;
   }, [map, mode, center, radiusKm]);
 
   useEffect(() => {

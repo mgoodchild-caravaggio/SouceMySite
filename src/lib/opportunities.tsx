@@ -225,16 +225,7 @@ export function useOpportunities() {
   return v;
 }
 
-const money = new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD', maximumFractionDigits: 2, notation: 'compact' });
-export const formatPrice = (n: number) => money.format(n);
-
-/** "40–80 ac", "40+ ac", "up to 80 ac" or "". */
-export function rangeLabel(min: number | undefined, max: number | undefined, unit: string, fmt: (n: number) => string = String) {
-  if (min != null && max != null) return min === max ? `${fmt(min)} ${unit}` : `${fmt(min)}–${fmt(max)} ${unit}`;
-  if (min != null) return `${fmt(min)}+ ${unit}`;
-  if (max != null) return `up to ${fmt(max)} ${unit}`;
-  return '';
-}
+export { formatPrice, rangeLabel } from './format';
 
 /** The note on drafts created from Salesforce tags; cleared once someone fills in the details. */
 export const DRAFT_NOTE = 'Drafted from Salesforce tags. Add acres, budget, area and timing.';

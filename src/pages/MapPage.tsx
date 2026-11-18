@@ -1,4 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { MatchRow } from '../components/MatchesPanel';
+import { matchListing, matchRequirement } from '../lib/matching';
+import { useOpportunities } from '../lib/opportunities';
 import { MapView } from '../components/MapView';
 import { MultiSelect } from '../components/MultiSelect';
 import { PlaceSearch } from '../components/PlaceSearch';
@@ -31,7 +35,35 @@ export default function MapPage() {
   const { business } = useSession();
   const { contacts, loading, update } = useContacts();
   // The map shows prospects in the business picked in the sidebar.
-  const prospects = useMemo(() => contacts.filter((c) => c.isProspect && c.business === business), [contacts, business]);
+  const { opportunities } = useOpportunities();
+  const [params, setParams] = useSearchParams();
+  const matchId = params.get('match');
+
+  // Match mode (/map?match=<opportunity>): the map centres on the listing or requirement, and the list
+  // shows every match with its score, including buyers who own no land (so have no pin).
+  const matchState = useMemo(() => {
+    const opportunity = matchId ? opportunities.find((o) => o.id === matchId) : undefined;
+    const owner = opportunity && contacts.find((c) => c.id === opportunity.contactId);
+    if (!opportunity || !owner) return null;
+    const property = owner.properties.find((p) => p.id === opportunity.propertyId);
+    const data = { contacts, opportunities };
+    const results = opportunity.kind === 'listing' ? matchListing({ opportunity, contact: owner, property }, data) : matchRequirement({ opportunity, contact: owner }, data);
+    const point =
+      opportunity.kind === 'listing'
+        ? property && { lat: property.lat, lng: property.lng }
+        : opportunity.areaLat != null && opportunity.areaLng != null
+          ? { lat: opportunity.areaLat, lng: opportunity.areaLng }
+          : undefined;
+    return { opportunity, owner, property, results, point, radiusKm: opportunity.areaRadiusKm ?? 25 };
+  }, [matchId, opportunities, contacts]);
+
+  const businessProspects = useMemo(() => contacts.filter((c) => c.isProspect && c.business === business), [contacts, business]);
+  // In match mode the map shows the subject's land and the matches' land; otherwise every prospect.
+  const prospects = useMemo(() => {
+    if (!matchState) return businessProspects;
+    const ids = new Set([matchState.owner.id, ...matchState.results.map((r) => r.contact.id)]);
+    return contacts.filter((c) => ids.has(c.id) && c.properties.length);
+  }, [matchState, businessProspects, contacts]);
   const campaigns = useMemo(() => [...new Set(prospects.flatMap((p) => p.campaigns))].sort((a, b) => a.localeCompare(b)), [prospects]);
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [mode, setMode] = useState<Mode>('near');
@@ -47,6 +79,23 @@ export default function MapPage() {
   const [sort, setSort] = useState<Sort>('distance');
   const [mobileView, setMobileView] = useState<'map' | 'list'>('map');
   const [locating, setLocating] = useState(false);
+
+  // Entering match mode centres the map on the listing's land or the buyer's search area.
+  useEffect(() => {
+    if (!matchState?.point) return;
+    setMode('near');
+    setCenter({ ...matchState.point, label: matchState.opportunity.kind === 'listing' ? matchState.property?.address ?? 'the listing' : matchState.opportunity.areaLabel || 'their area' });
+    setRadiusKm(Math.round(matchState.radiusKm));
+    setSelectedId(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matchState?.opportunity.id, matchState?.point?.lat, matchState?.point?.lng]);
+
+  const exitMatch = () => {
+    const next = new URLSearchParams(params);
+    next.delete('match');
+    setParams(next, { replace: true });
+    setCenter(null);
+  };
 
   // Fetch a driving route whenever both ends are set.
   useEffect(() => {
@@ -308,6 +357,38 @@ export default function MapPage() {
               onUpdate={(patch) => update(selected.id, patch)}
               onRouteTo={routeTo}
             />
+          ) : matchState ? (
+            <div className="match-mode">
+              <div className="list-head">
+                <p className="summary">
+                  {matchState.opportunity.kind === 'listing' ? 'Who might buy' : 'Land for'} “{matchState.opportunity.title}”
+                </p>
+                <div className="list-tools">
+                  <span className="muted small">
+                    {matchState.results.length} match{matchState.results.length === 1 ? '' : 'es'} · for {matchState.owner.firstName} {matchState.owner.lastName}
+                  </span>
+                  <button type="button" className="btn small" onClick={exitMatch}>
+                    Exit match mode
+                  </button>
+                </div>
+              </div>
+              {matchState.results.length === 0 ? (
+                <div className="empty">
+                  <strong>No matches yet.</strong>
+                  <span>Add more detail to the {matchState.opportunity.kind}, or add requirements and listings to other contacts.</span>
+                </div>
+              ) : (
+                <ul className="match-list match-mode-list">
+                  {matchState.results.map((m) => (
+                    <MatchRow
+                      key={`${m.kind}:${m.contact.id}:${m.opportunity?.id ?? m.property?.id ?? ''}`}
+                      m={m}
+                      onShow={m.property ? () => setSelectedId(m.contact.id) : undefined}
+                    />
+                  ))}
+                </ul>
+              )}
+            </div>
           ) : (
             <>
               <div className="list-head">
