@@ -7,7 +7,7 @@ A map-first CRM prototype for Caravaggio Real Estate prospects, laid out like re
 - Filters cover status, customer type, category, region, campaign, follow-up and name/company/phone (all multi-select, matching the Salesforce fields).
 - **Export call list** downloads the current results as a CSV (name, company, phone, email, status, distance, property).
 - Status, follow-up and notes can be edited. Edits are saved to the database and shared by everyone signed in.
-- Sign-in is by emailed link and invite-only: only people added in Supabase can get in.
+- Sign-in is invite-only: only people added in Supabase can get in. They can use an emailed link or "Continue with Microsoft" (Caravaggio's Microsoft 365 accounts only). "Continue with Google" appears once the Google provider is turned on in `supabase/config.toml`.
 
 ## Run
 
@@ -35,6 +35,7 @@ Open http://localhost:5173 and sign in with an invited email.
   - `supabase/seed.sql` is the fictional sample data, generated from `src/data/seed.ts` with `npm run seed:generate`.
   - Auth settings (site URL, redirect URLs, sign-up disabled, email) live in `supabase/config.toml` and are applied with `supabase config push`. Run it with `.env.local` loaded (`set -a; . ./.env.local; set +a`) so the email password is included.
 - **Email:** invite and sign-in emails go through Resend from noreply@caravaggiorealestate.ca (domain verified with DNS records at Squarespace). The Resend API key is `SUPABASE_AUTH_SMTP_PASS` in `.env.local`. Limit: 30 emails an hour.
+- **Microsoft sign-in:** Entra app registration "Prospect Map" in the Caravaggio tenant. Its client ID, secret and tenant URL (`https://login.microsoftonline.com/<tenant-id>`, no `/v2.0`) are `SUPABASE_AUTH_EXTERNAL_AZURE_*` in `.env.local`. The client secret expires after 24 months and must be renewed in Entra, then pushed with `supabase config push`.
 
 ### Adding a user
 

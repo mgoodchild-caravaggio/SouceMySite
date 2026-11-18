@@ -224,3 +224,7 @@ h2, h3, h4 { margin: 0; }
 .user-menu { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 .user-menu .email { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 720px) { .user-menu .email { display: none; } }
+.sso-buttons { display: flex; flex-direction: column; gap: 8px; }
+.btn.sso { gap: 10px; height: 40px; }
+.auth-divider { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12px; }
+.auth-divider::before, .auth-divider::after { content: ''; flex: 1; height: 1px; background: var(--line); }
