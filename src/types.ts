@@ -34,6 +34,8 @@ export const CUSTOMER_TYPES = [
 ] as const;
 
 export const BUSINESSES = ['Real Estate', 'Staging'] as const;
+export const CONSENT_TYPES = ['express', 'implied', 'none'] as const;
+export type ConsentType = (typeof CONSENT_TYPES)[number];
 
 export type Status = (typeof STATUSES)[number];
 export type Business = (typeof BUSINESSES)[number];
@@ -89,6 +91,12 @@ export interface Contact {
   campaigns: string[];
   notes: string;
   properties: Property[];
+  /** CASL email consent: express (they agreed), implied (deal or inquiry; expires), or none. */
+  emailConsent: ConsentType;
+  consentDate?: string;
+  consentSource: string;
+  consentExpiresOn?: string;
+  unsubscribedAt?: string;
 }
 
 /** The map and its components work with prospects, which are contacts marked as prospects. */

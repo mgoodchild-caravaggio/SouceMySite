@@ -7,6 +7,7 @@ import { supabase } from './lib/supabase';
 import { ThemeButton } from './components/ThemeButton';
 import MapPage from './pages/MapPage';
 import DashboardPage from './pages/DashboardPage';
+import SettingsPage from './pages/SettingsPage';
 import ArchivePage from './pages/ArchivePage';
 import ContactListPage from './pages/ContactListPage';
 import ContactPage from './pages/ContactPage';
@@ -34,6 +35,7 @@ export default function App({ session }: { session: Session }) {
               <Route path="contacts" element={<ContactListPage key="contacts" kind="contacts" />} />
               <Route path="contacts/:id" element={<ContactPage />} />
               <Route path="archive" element={<ArchivePage />} />
+              <Route path="settings" element={<SettingsPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
           </Routes>
@@ -94,6 +96,13 @@ function Shell() {
 
         <div className="sidebar-tools">
           <ThemeButton />
+          <NavLink to="/settings" className={({ isActive }) => `theme-btn${isActive ? ' active' : ''}`} aria-label="Settings" title="Settings">
+            <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z" />
+            </svg>
+            <span className="theme-label">Settings</span>
+          </NavLink>
         </div>
 
         <div className="sidebar-user">

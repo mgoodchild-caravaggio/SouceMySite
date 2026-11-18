@@ -6,6 +6,8 @@ Caravaggio Real Estate's internal app, at https://hub.caravaggiorealestate.ca. A
 - **Prospects / Contacts:** sortable tables with search, filters (kept in the page address), and bulk status, assign, campaign, make-prospect, export and archive. Contacts has All / Prospects / Other contacts tabs.
 - **Contact page:** details, follow-up date and assignment (Done / Tomorrow / Next week), status, summary, properties with a map (address search and draggable pin), and an activity timeline for calls, notes, emails and meetings.
 - **Theme:** Light, Dark or System (follows the device), from the button at the bottom of the sidebar; remembered per device. Colours are CSS variables at the top of `src/styles.css`, with separate dark values.
+- **Settings:** your display name, **Connect Outlook** (Microsoft 365 calendar and mail access for upcoming features), and the team list.
+- **Email consent:** each contact records CASL consent (express, or implied with an end date) and can be marked unsubscribed, which adds them to a permanent do-not-email list. Lists can filter to "Can email".
 - **Archive:** archived contacts can be restored by anyone and permanently deleted by admins.
 
 The Map page is a map-first prospect search laid out like realtor.ca: map on the left, results on the right.
@@ -44,6 +46,7 @@ Open http://localhost:5173 and sign in with an invited email.
   - `supabase/seed.sql` is the fictional sample data, generated from `src/data/seed.ts` with `npm run seed:generate`.
   - Auth settings (site URL, redirect URLs, sign-up disabled, email) live in `supabase/config.toml` and are applied with `supabase config push`. Run it with `.env.local` loaded (`set -a; . ./.env.local; set +a`) so the email password is included.
 - **Email:** invite and sign-in emails go through Resend from "Hub" <noreply@caravaggiorealestate.ca> (domain verified with DNS records at Squarespace). The Resend API key is `SUPABASE_AUTH_SMTP_PASS` in `.env.local`. Limit: 30 emails an hour.
+- **Server functions:** `supabase/functions/` holds Supabase Edge Functions (`outlook-connect`, `outlook-callback`, `outlook-disconnect`, `outlook-check`). Deploy with `supabase functions deploy <name> --use-api`. Their secrets (`MS_CLIENT_ID`, `MS_CLIENT_SECRET`, `MS_TENANT_ID`, `TOKEN_KEY`, `APP_ORIGINS`) are set with `supabase secrets set`; `TOKEN_KEY` (which encrypts stored Outlook tokens) is also kept as `OUTLOOK_TOKEN_KEY` in `.env.local`. Changing it disconnects everyone's Outlook.
 - **Microsoft sign-in:** Entra app registration "Prospect Map" (shown to users on Microsoft's consent screen; rename it to "Hub" in Entra if wanted) in the Caravaggio tenant. Its client ID, secret and tenant URL (`https://login.microsoftonline.com/<tenant-id>`, no `/v2.0`) are `SUPABASE_AUTH_EXTERNAL_AZURE_*` in `.env.local`. The client secret expires after 24 months and must be renewed in Entra, then pushed with `supabase config push`.
 
 ### Adding a user

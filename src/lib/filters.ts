@@ -14,9 +14,11 @@ export const EMPTY_FILTERS: Filters = {
 export interface ListFilters extends Filters {
   /** '' for anyone, 'me', 'none', or a user id. */
   assigned: string;
+  /** '' any, 'ok' can receive marketing email, 'no' can't. */
+  email: '' | 'ok' | 'no';
 }
 
-export const EMPTY_LIST_FILTERS: ListFilters = { ...EMPTY_FILTERS, assigned: '' };
+export const EMPTY_LIST_FILTERS: ListFilters = { ...EMPTY_FILTERS, assigned: '', email: '' };
 
 export function matchesFilters(c: Contact, f: Filters): boolean {
   const any = <T,>(want: T[], have: T[]) => want.length === 0 || want.some((w) => have.includes(w));
@@ -41,6 +43,7 @@ export function matchesListFilters(c: Contact, f: ListFilters, myId: string): bo
   if (f.assigned === 'me' && c.assignedTo !== myId) return false;
   if (f.assigned === 'none' && c.assignedTo) return false;
   if (f.assigned && !['me', 'none'].includes(f.assigned) && c.assignedTo !== f.assigned) return false;
+  if (f.email && (consentState(c) === 'ok') !== (f.email === 'ok')) return false;
   return true;
 }
 
@@ -58,6 +61,7 @@ export function filtersFromParams(p: URLSearchParams): ListFilters {
     campaigns: p.get('campaign')?.split(',').filter(Boolean) ?? [],
     followUpOnly: p.get('followup') === '1',
     assigned: p.get('assigned') ?? '',
+    email: p.get('email') === 'ok' || p.get('email') === 'no' ? (p.get('email') as 'ok' | 'no') : '',
   };
 }
 
@@ -72,13 +76,14 @@ export function filtersToParams(f: ListFilters, base: URLSearchParams): URLSearc
   set('campaign', f.campaigns.join(','));
   set('followup', f.followUpOnly ? '1' : '');
   set('assigned', f.assigned);
+  set('email', f.email);
   return p;
 }
 
 export function activeFilterCount(f: ListFilters): number {
   return (
     f.statuses.length + f.regions.length + f.categories.length + f.customerTypes.length + f.campaigns.length +
-    (f.followUpOnly ? 1 : 0) + (f.assigned ? 1 : 0) + (f.text ? 1 : 0)
+    (f.followUpOnly ? 1 : 0) + (f.assigned ? 1 : 0) + (f.email ? 1 : 0) + (f.text ? 1 : 0)
   );
 }
 
@@ -120,4 +125,30 @@ export function followUpState(iso: string): 'overdue' | 'today' | 'soon' | 'late
   const week = new Date();
   week.setDate(week.getDate() + 7);
   return iso <= week.toLocaleDateString('en-CA') ? 'soon' : 'later';
+}
+
+export type ConsentState = 'ok' | 'expired' | 'none' | 'unsubscribed' | 'no-email';
+
+/** Whether a contact may receive marketing email today under CASL, and why not. Mirrors can_email_marketing() in the database. */
+export function consentState(c: Pick<Contact, 'email' | 'emailConsent' | 'consentExpiresOn' | 'unsubscribedAt'>): ConsentState {
+  if (!c.email) return 'no-email';
+  if (c.unsubscribedAt) return 'unsubscribed';
+  if (c.emailConsent === 'none') return 'none';
+  if (c.consentExpiresOn && c.consentExpiresOn < todayIso()) return 'expired';
+  return 'ok';
+}
+
+export const CONSENT_LABEL: Record<ConsentState, string> = {
+  ok: 'Can email',
+  expired: 'Consent expired',
+  none: 'No consent',
+  unsubscribed: 'Unsubscribed',
+  'no-email': 'No email address',
+};
+
+/** Implied consent lasts 2 years after a deal and 6 months after an inquiry. */
+export function impliedExpiry(fromIso: string, source: string): string {
+  const d = new Date(`${fromIso}T00:00:00`);
+  d.setMonth(d.getMonth() + (/past client|deal|closed/i.test(source) ? 24 : 6));
+  return d.toLocaleDateString('en-CA');
 }

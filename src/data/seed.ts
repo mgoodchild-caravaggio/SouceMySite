@@ -156,6 +156,7 @@ function buildSeed(count: number): Prospect[] {
       ...followUp(rand() < 0.25 ? Math.floor(rand() * 24) - 10 : null),
       business: 'Real Estate',
       isProspect: true,
+      ...sampleConsent(customerTypes, rand),
       title: '',
       phone2: '',
       website: '',
@@ -171,6 +172,32 @@ function buildSeed(count: number): Prospect[] {
 function regionOf(p: Property, fallback: Anchor): Region {
   const town = p.address.split(', ').pop();
   return ANCHORS.find((a) => a.town === town)?.region ?? fallback.region;
+}
+
+const isoDaysAgo = (days: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d.toLocaleDateString('en-CA');
+};
+const plusMonths = (iso: string, months: number) => {
+  const d = new Date(`${iso}T00:00:00`);
+  d.setMonth(d.getMonth() + months);
+  return d.toLocaleDateString('en-CA');
+};
+
+/** Sample CASL consent: past clients have implied consent from a deal, referrals from an inquiry, a few gave express consent. */
+function sampleConsent(types: CustomerType[], rand: () => number): Pick<Contact, 'emailConsent' | 'consentDate' | 'consentSource' | 'consentExpiresOn'> {
+  const r = rand();
+  if (types.includes('Past Client')) {
+    const date = isoDaysAgo(Math.floor(rand() * 900)); // some past the 2-year window
+    return { emailConsent: 'implied', consentDate: date, consentSource: 'Past client: closed deal', consentExpiresOn: plusMonths(date, 24) };
+  }
+  if (types.includes('Referral Source') || r < 0.12) {
+    const date = isoDaysAgo(Math.floor(rand() * 260));
+    return { emailConsent: 'implied', consentDate: date, consentSource: 'Inquiry', consentExpiresOn: plusMonths(date, 6) };
+  }
+  if (r < 0.2) return { emailConsent: 'express', consentDate: isoDaysAgo(Math.floor(rand() * 400)), consentSource: 'Signed up at open house', consentExpiresOn: undefined };
+  return { emailConsent: 'none', consentSource: '' };
 }
 
 /** A follow-up `days` from today (negative = overdue), or none. */
@@ -202,6 +229,7 @@ const OTHER_CONTACTS: [first: string, last: string, company: string, title: stri
 ];
 
 function buildOtherContacts(): Contact[] {
+  const rand = mulberry32(42); // repeatable sample consent
   return OTHER_CONTACTS.map(([firstName, lastName, company, title, business, customerTypes], i) => ({
     id: `C${String(i + 1).padStart(4, '0')}`,
     business,
@@ -224,6 +252,7 @@ function buildOtherContacts(): Contact[] {
     campaigns: [],
     notes: '',
     properties: [],
+    ...sampleConsent(customerTypes, rand),
   }));
 }
 

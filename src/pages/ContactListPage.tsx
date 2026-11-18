@@ -211,6 +211,16 @@ export default function ContactListPage({ kind }: { kind: Kind }) {
               </option>
             ))}
         </select>
+        <select
+          className={`chip-select ${filters.email ? 'active' : ''}`}
+          aria-label="Marketing email"
+          value={filters.email}
+          onChange={(e) => set('email')(e.target.value as ListFilters['email'])}
+        >
+          <option value="">Email: any</option>
+          <option value="ok">Can email (consent)</option>
+          <option value="no">Can't email</option>
+        </select>
         {filterCount > 0 && (
           <button type="button" className="link-btn" onClick={() => setFilters(EMPTY_LIST_FILTERS)}>
             Clear filters

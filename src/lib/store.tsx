@@ -26,6 +26,11 @@ const COLUMNS = {
   archivedAt: 'archived_at',
   campaigns: 'campaigns',
   notes: 'notes',
+  emailConsent: 'email_consent',
+  consentDate: 'consent_date',
+  consentSource: 'consent_source',
+  consentExpiresOn: 'consent_expires_on',
+  unsubscribedAt: 'unsubscribed_at',
 } as const;
 
 type EditableKey = keyof typeof COLUMNS;
@@ -67,6 +72,11 @@ interface ContactRow {
   campaigns: string[];
   notes: string;
   properties: PropertyRow[];
+  email_consent: Contact['emailConsent'];
+  consent_date: string | null;
+  consent_source: string;
+  consent_expires_on: string | null;
+  unsubscribed_at: string | null;
 }
 
 function fromRow(r: ContactRow): Contact {
@@ -96,6 +106,11 @@ function fromRow(r: ContactRow): Contact {
     campaigns: r.campaigns,
     notes: r.notes,
     properties: r.properties.map((p) => ({ ...p, acres: p.acres ?? undefined })),
+    emailConsent: r.email_consent,
+    consentDate: r.consent_date ?? undefined,
+    consentSource: r.consent_source,
+    consentExpiresOn: r.consent_expires_on ?? undefined,
+    unsubscribedAt: r.unsubscribed_at ?? undefined,
   };
 }
 

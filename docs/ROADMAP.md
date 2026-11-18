@@ -67,3 +67,7 @@ Each step is deployable on its own, so Hub stays usable throughout.
 
 - **Eric's email address**, to invite him and make him an admin.
 - **Which Salesforce records are staging**, when we get to the import (step 4).
+
+## Next: calendar and email marketing
+
+Planned in [PLAN-calendar-email.md](PLAN-calendar-email.md): Outlook calendar in Hub (schedule from Hub, today's meetings), one-off emails from Outlook, and consent-aware campaigns and drip sequences through Resend.

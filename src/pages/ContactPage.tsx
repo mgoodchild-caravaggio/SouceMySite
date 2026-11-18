@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { ConsentPanel } from '../components/ConsentPanel';
 import { ContactForm } from '../components/ContactForm';
 import { Confirm } from '../components/Dialog';
 import { PropertiesMap, PropertyEditor } from '../components/PropertyEditor';
@@ -256,6 +257,8 @@ export default function ContactPage() {
               </button>
             )}
           </section>
+
+          <ConsentPanel contact={contact} disabled={isArchived} onChange={(p) => change(p)} />
 
           <section className="panel">
             <h2>Summary</h2>

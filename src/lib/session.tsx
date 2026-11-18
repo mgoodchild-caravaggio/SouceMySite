@@ -18,6 +18,8 @@ interface SessionValue {
   people: Profile[];
   business: Business;
   setBusiness: (b: Business) => void;
+  /** Saves the signed-in user's display name. Returns an error message, or '' on success. */
+  rename: (name: string) => Promise<string>;
 }
 
 const SessionContext = createContext<SessionValue | null>(null);
@@ -66,6 +68,13 @@ export function SessionProvider({ session, children }: { session: Session; child
     [session.user.id],
   );
 
+  const rename = async (name: string) => {
+    const { error: e } = await supabase.from('profiles').update({ display_name: name }).eq('id', session.user.id);
+    if (e) return e.message;
+    setPeople((prev) => prev?.map((p) => (p.id === session.user.id ? { ...p, displayName: name || p.email } : p)) ?? prev);
+    return '';
+  };
+
   if (error) {
     return (
       <div className="auth-screen">
@@ -91,7 +100,7 @@ export function SessionProvider({ session, children }: { session: Session; child
   };
 
   return (
-    <SessionContext.Provider value={{ session, profile, people, business, setBusiness }}>{children}</SessionContext.Provider>
+    <SessionContext.Provider value={{ session, profile, people, business, setBusiness, rename }}>{children}</SessionContext.Provider>
   );
 }
 

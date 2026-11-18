@@ -50,6 +50,11 @@ function blank(business: NewContact['business'], isProspect: boolean, me: string
     assignedTo: isProspect ? me : undefined,
     campaigns: [],
     notes: '',
+    emailConsent: 'none',
+    consentDate: undefined,
+    consentSource: '',
+    consentExpiresOn: undefined,
+    unsubscribedAt: undefined,
   };
 }
 
