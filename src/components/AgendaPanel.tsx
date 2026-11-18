@@ -1,18 +1,27 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { addMinutes, fetchEvents, formatWallDay, formatWallTime, wallFromDate, type OutlookEvent } from '../lib/calendar';
 import { displayName } from '../lib/filters';
 import { useOutlookConnections } from '../lib/outlook';
 import { useSession } from '../lib/session';
 import { useContacts } from '../lib/store';
+import { supabase } from '../lib/supabase';
+import type { Contact } from '../types';
 
-/** Your Outlook meetings for today and the next few days, linked to Hub contacts by email. */
+/**
+ * Your Outlook meetings for today and the next few days. Each one is linked to its Hub contact:
+ * meetings scheduled from Hub by the meeting itself, others by matching attendee email addresses.
+ * Clicking a linked meeting opens that contact's Meetings panel, where it can be cancelled.
+ */
 export function AgendaPanel({ days = 4, refreshKey = 0 }: { days?: number; refreshKey?: number }) {
   const { profile } = useSession();
   const { contacts } = useContacts();
   const { connections } = useOutlookConnections();
+  const navigate = useNavigate();
   const conn = connections?.find((c) => c.userId === profile.id);
   const [events, setEvents] = useState<OutlookEvent[] | null>(null);
+  // Outlook event id → contact id, for meetings booked through Hub.
+  const [hubEvents, setHubEvents] = useState<Map<string, string>>(new Map());
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -20,7 +29,14 @@ export function AgendaPanel({ days = 4, refreshKey = 0 }: { days?: number; refre
     const today = wallFromDate(new Date()).slice(0, 10);
     let cancelled = false;
     fetchEvents(`${today}T00:00`, addMinutes(`${today}T00:00`, days * 24 * 60))
-      .then((r) => !cancelled && setEvents(r.events))
+      .then(async (r) => {
+        if (cancelled) return;
+        setEvents(r.events);
+        const ids = r.events.map((e) => e.id);
+        if (!ids.length) return;
+        const { data } = await supabase.from('meetings').select('outlook_event_id, contact_id').in('outlook_event_id', ids).eq('status', 'scheduled');
+        if (!cancelled) setHubEvents(new Map((data ?? []).map((m) => [m.outlook_event_id as string, m.contact_id as string])));
+      })
       .catch((e) => !cancelled && setError((e as Error).message));
     return () => {
       cancelled = true;
@@ -28,10 +44,23 @@ export function AgendaPanel({ days = 4, refreshKey = 0 }: { days?: number; refre
   }, [conn, days, refreshKey]);
 
   const byEmail = useMemo(() => {
-    const map = new Map<string, (typeof contacts)[number]>();
+    const map = new Map<string, Contact>();
     for (const c of contacts) if (c.email) map.set(c.email.toLowerCase(), c);
     return map;
   }, [contacts]);
+  const byId = useMemo(() => new Map(contacts.map((c) => [c.id, c])), [contacts]);
+
+  /** The contacts a meeting belongs to: the Hub booking's contact first, then any attendee matches. */
+  const contactsFor = (e: OutlookEvent): Contact[] => {
+    const found: Contact[] = [];
+    const hubContact = hubEvents.get(e.id);
+    if (hubContact && byId.get(hubContact)) found.push(byId.get(hubContact)!);
+    for (const email of e.emails) {
+      const c = byEmail.get(email);
+      if (c && !found.includes(c)) found.push(c);
+    }
+    return found;
+  };
 
   const now = wallFromDate(new Date());
   const upcoming = (events ?? []).filter((e) => e.allDay || e.end > now);
@@ -41,6 +70,7 @@ export function AgendaPanel({ days = 4, refreshKey = 0 }: { days?: number; refre
   }, {});
   const today = now.slice(0, 10);
   const tomorrow = addMinutes(`${today}T00:00`, 1440).slice(0, 10);
+  const contactUrl = (c: Contact) => `/contacts/${c.id}#meetings`;
 
   return (
     <section className="panel">
@@ -73,16 +103,28 @@ export function AgendaPanel({ days = 4, refreshKey = 0 }: { days?: number; refre
             <h3 className="agenda-day">{day === today ? 'Today' : day === tomorrow ? 'Tomorrow' : formatWallDay(day)}</h3>
             <ul className="agenda">
               {list.map((e) => {
-                const linked = [...new Set(e.emails)].map((m) => byEmail.get(m)).filter((c): c is NonNullable<typeof c> => !!c);
+                const linked = contactsFor(e);
+                const primary = linked[0];
                 return (
-                  <li key={e.id}>
-                    <span className="a-time">{e.allDay ? 'All day' : `${formatWallTime(e.start)}`}</span>
+                  <li
+                    key={e.id}
+                    className={primary ? 'linked' : ''}
+                    // The whole row opens the contact; inner links keep their own targets.
+                    onClick={(ev) => primary && !(ev.target as HTMLElement).closest('a') && navigate(contactUrl(primary))}
+                  >
+                    <span className="a-time">{e.allDay ? 'All day' : formatWallTime(e.start)}</span>
                     <div>
-                      <div className="a-title">{e.subject}</div>
+                      {primary ? (
+                        <Link className="a-title" to={contactUrl(primary)}>
+                          {e.subject}
+                        </Link>
+                      ) : (
+                        <div className="a-title">{e.subject}</div>
+                      )}
                       {e.location && <div className="muted small">{e.location}</div>}
                       <div className="a-links">
                         {linked.map((c) => (
-                          <Link key={c.id} to={`/contacts/${c.id}`}>
+                          <Link key={c.id} to={contactUrl(c)} className="a-contact">
                             {displayName(c)}
                           </Link>
                         ))}
@@ -96,6 +138,11 @@ export function AgendaPanel({ days = 4, refreshKey = 0 }: { days?: number; refre
                         </a>
                       </div>
                     </div>
+                    {primary && (
+                      <span className="a-go" aria-hidden="true">
+                        ›
+                      </span>
+                    )}
                   </li>
                 );
               })}

@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Confirm } from './Dialog';
 import { ScheduleDialog } from './ScheduleDialog';
 import { cancelMeeting, formatWallDay, formatWallTime, KIND_NAME, useContactMeetings, wallFromDate, type Meeting } from '../lib/calendar';
@@ -20,6 +21,13 @@ export function MeetingsPanel({ contact, disabled, onChanged }: Props) {
   const [cancelling, setCancelling] = useState<Meeting | null>(null);
   const [showPast, setShowPast] = useState(false);
   const [error, setError] = useState('');
+  const ref = useRef<HTMLElement>(null);
+  const { hash } = useLocation();
+
+  // Opened from the Dashboard (…#meetings): bring this panel into view.
+  useEffect(() => {
+    if (hash === '#meetings') ref.current?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }, [hash, meetings.length]);
 
   const now = new Date().toISOString();
   const upcoming = meetings.filter((m) => m.status === 'scheduled' && m.endsAt >= now).reverse();
@@ -67,7 +75,7 @@ export function MeetingsPanel({ contact, disabled, onChanged }: Props) {
   };
 
   return (
-    <section className="panel">
+    <section className="panel" id="meetings" ref={ref}>
       <div className="panel-head">
         <h2>Meetings</h2>
         {!disabled && (
