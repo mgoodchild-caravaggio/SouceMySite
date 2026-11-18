@@ -155,8 +155,13 @@ export const stopCampaign = (campaignId: string) => callFunction('campaign-send'
 
 /** Addresses on the do-not-email list. */
 export async function fetchSuppressed(): Promise<Set<string>> {
-  const { data } = await supabase.from('email_suppressions').select('email');
-  return new Set((data ?? []).map((r) => r.email as string));
+  const out = new Set<string>();
+  // Read in pages: Supabase returns at most 1,000 rows per request.
+  for (let from = 0; ; from += 1000) {
+    const { data } = await supabase.from('email_suppressions').select('email').order('email').range(from, from + 999);
+    for (const r of data ?? []) out.add(r.email as string);
+    if (!data || data.length < 1000) return out;
+  }
 }
 
 export type Exclusion = 'no email address' | 'no consent' | 'consent expired' | 'unsubscribed' | 'duplicate address';

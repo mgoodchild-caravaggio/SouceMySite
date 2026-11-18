@@ -60,11 +60,20 @@ Deno.serve(
     if (!contactIds.length) throw new HttpError(400, 'The audience is empty');
 
     // Check every contact on the server, whatever the browser said.
-    const { data: rows } = await db.from('contacts').select('*').in('id', contactIds).eq('business', campaign.business);
-    const contacts = (rows ?? []) as ContactRow[];
+    // Look people up in chunks: one request with hundreds of IDs would be too long.
+    const chunks = <T,>(list: T[], size = 200) => Array.from({ length: Math.ceil(list.length / size) }, (_, i) => list.slice(i * size, i * size + size));
+    const contacts: ContactRow[] = [];
+    for (const ids of chunks(contactIds)) {
+      const { data, error } = await db.from('contacts').select('*').in('id', ids).eq('business', campaign.business);
+      if (error) throw error;
+      contacts.push(...((data ?? []) as ContactRow[]));
+    }
     const emails = contacts.map((c) => c.email?.toLowerCase()).filter(Boolean) as string[];
-    const { data: supp } = await db.from('email_suppressions').select('email').in('email', emails.length ? emails : ['-']);
-    const suppressed = new Set((supp ?? []).map((s) => s.email));
+    const suppressed = new Set<string>();
+    for (const list of chunks(emails)) {
+      const { data } = await db.from('email_suppressions').select('email').in('email', list);
+      for (const s of data ?? []) suppressed.add(s.email);
+    }
     const seen = new Set<string>();
     const queue = contacts.filter((c) => {
       if (exclusionReason(c, suppressed)) return false;
@@ -78,8 +87,10 @@ Deno.serve(
     const scheduleFor = b.scheduleFor ? new Date(String(b.scheduleFor)) : null;
     if (scheduleFor && (isNaN(scheduleFor.getTime()) || scheduleFor.getTime() < Date.now() - 60_000)) throw new HttpError(400, 'Pick a time in the future');
 
-    const { error } = await db.from('campaign_sends').insert(queue.map((c) => ({ campaign_id: campaign.id, contact_id: c.id, email: c.email!.toLowerCase() })));
-    if (error) throw error;
+    for (const part of chunks(queue, 500)) {
+      const { error } = await db.from('campaign_sends').insert(part.map((c) => ({ campaign_id: campaign.id, contact_id: c.id, email: c.email!.toLowerCase() })));
+      if (error) throw error;
+    }
     const later = scheduleFor && scheduleFor.getTime() > Date.now() + 60_000;
     await db
       .from('campaigns')

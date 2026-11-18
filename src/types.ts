@@ -10,6 +10,9 @@ export const REGIONS = [
   'Greater Golden Horseshoe',
   'Middlesex',
   'Peterborough',
+  'Niagara',
+  'Wellington',
+  'Grey Bruce',
 ] as const;
 export const CATEGORIES = [
   'Industrial Land',
@@ -20,6 +23,8 @@ export const CATEGORIES = [
   'White Belt',
   'Expansion Boundary',
   'Investment Property',
+  'Urban Boundary',
+  'Condo Land',
 ] as const;
 export const CUSTOMER_TYPES = [
   'Buyer',

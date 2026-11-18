@@ -7,3 +7,5 @@ dist
 .env.*
 !.env.example
 supabase/.temp
+# Salesforce import output (client personal information)
+sf-import/

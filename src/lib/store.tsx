@@ -160,6 +160,23 @@ interface ContactsValue {
 
 const ContactsContext = createContext<ContactsValue | null>(null);
 
+/**
+ * Supabase returns at most 1,000 rows per request, so read a table in pages until it runs out.
+ * `build` must return a fresh, ordered query each time.
+ */
+async function fetchAll<T>(
+  build: () => { range: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }> },
+): Promise<{ data: T[]; error: { message: string } | null }> {
+  const PAGE = 1000;
+  const all: T[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await build().range(from, from + PAGE - 1);
+    if (error) return { data: all, error };
+    all.push(...(data ?? []));
+    if (!data || data.length < PAGE) return { data: all, error: null };
+  }
+}
+
 /** Fetches one contact (archived or not) straight from the database. */
 export async function fetchContact(id: string): Promise<Contact | null> {
   const { data, error } = await supabase.from('contacts').select(SELECT).eq('id', id).maybeSingle();
@@ -182,8 +199,8 @@ export function ContactsProvider({ onError, children }: { onError: (message: str
   useEffect(() => {
     let cancelled = false;
     Promise.all([
-      supabase.from('contacts').select(SELECT).is('archived_at', null).order('last_name'),
-      supabase.from('contact_last_activity').select('contact_id, last_activity_at'),
+      fetchAll(() => supabase.from('contacts').select(SELECT).is('archived_at', null).order('last_name').order('id')),
+      fetchAll(() => supabase.from('contact_last_activity').select('contact_id, last_activity_at').order('contact_id')),
     ]).then(([contactsRes, activityRes]) => {
       if (cancelled) return;
       if (contactsRes.error) onError(`Couldn't load contacts: ${contactsRes.error.message}`);
