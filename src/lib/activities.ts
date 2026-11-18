@@ -98,3 +98,44 @@ export function useActivities(contactId: string | undefined, onError: (message: 
 
   return { activities, loading, add, remove, reload: load };
 }
+
+/** Logs one activity for a contact (outside a contact page). Returns its time, or null on failure. */
+export async function logActivity(contactId: string, kind: ActivityKind, body = ''): Promise<string | null> {
+  const { data, error } = await supabase.from('activities').insert({ contact_id: contactId, kind, body }).select('occurred_at').single();
+  return error ? null : (data as { occurred_at: string }).occurred_at;
+}
+
+export interface FeedItem extends Activity {
+  contactName: string;
+  contactCompany: string;
+}
+
+/** The latest activity across the team in one business, newest first. */
+export function useRecentActivity(business: string, limit: number) {
+  const [items, setItems] = useState<FeedItem[] | null>(null);
+  const [error, setError] = useState('');
+
+  const load = useCallback(async () => {
+    const { data, error: e } = await supabase
+      .from('activities')
+      .select('*, contacts!inner(first_name, last_name, company, business, archived_at)')
+      .eq('contacts.business', business)
+      .order('occurred_at', { ascending: false })
+      .limit(limit);
+    if (e) return setError(e.message);
+    type Row = ActivityRow & { contacts: { first_name: string; last_name: string; company: string } };
+    setItems(
+      (data as Row[]).map((r) => ({
+        ...fromRow(r),
+        contactName: `${r.contacts.first_name} ${r.contacts.last_name}`.trim(),
+        contactCompany: r.contacts.company === 'tbd' ? '' : r.contacts.company,
+      })),
+    );
+  }, [business, limit]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  return { items, error, reload: load };
+}

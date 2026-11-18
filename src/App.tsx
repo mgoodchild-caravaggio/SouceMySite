@@ -5,7 +5,7 @@ import { SessionProvider, useSession } from './lib/session';
 import { ContactsProvider } from './lib/store';
 import { supabase } from './lib/supabase';
 import MapPage from './pages/MapPage';
-import { ComingSoon } from './pages/ComingSoon';
+import DashboardPage from './pages/DashboardPage';
 import ArchivePage from './pages/ArchivePage';
 import ContactListPage from './pages/ContactListPage';
 import ContactPage from './pages/ContactPage';
@@ -27,7 +27,7 @@ export default function App({ session }: { session: Session }) {
         <BrowserRouter>
           <Routes>
             <Route element={<Shell />}>
-              <Route index element={<ComingSoon page="dashboard" />} />
+              <Route index element={<DashboardPage />} />
               <Route path="map" element={<MapPage />} />
               <Route path="prospects" element={<ContactListPage key="prospects" kind="prospects" />} />
               <Route path="contacts" element={<ContactListPage key="contacts" kind="contacts" />} />

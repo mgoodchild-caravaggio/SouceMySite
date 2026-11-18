@@ -2,6 +2,7 @@
 
 Caravaggio Real Estate's internal app, at https://hub.caravaggiorealestate.ca. A sidebar switches between the Real Estate and Staging businesses and leads to the Dashboard, Map, Prospects, Contacts and Archive pages. Plans for the pages still being built are in [docs/ROADMAP.md](docs/ROADMAP.md).
 
+- **Dashboard:** follow-ups due (overdue, today, next 7 days; mine or everyone) with Call, Done and Snooze; pipeline count and deal value by status; recent team activity; and a map of Lead and Active Lead properties.
 - **Prospects / Contacts:** sortable tables with search, filters (kept in the page address), and bulk status, assign, campaign, make-prospect, export and archive. Contacts has All / Prospects / Other contacts tabs.
 - **Contact page:** details, follow-up date and assignment (Done / Tomorrow / Next week), status, summary, properties with a map (address search and draggable pin), and an activity timeline for calls, notes, emails and meetings.
 - **Archive:** archived contacts can be restored by anyone and permanently deleted by admins.
