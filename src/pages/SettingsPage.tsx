@@ -110,6 +110,10 @@ export default function SettingsPage() {
               Save name
             </button>
             {nameMsg && <span className="muted small" role="status">{nameMsg}</span>}
+            {/* On phones the top bar has no room for Sign out, so it lives here. */}
+            <button type="button" className="btn small mobile-only" style={{ marginLeft: 'auto' }} onClick={() => supabase.auth.signOut()}>
+              Sign out
+            </button>
           </div>
         </form>
       </section>

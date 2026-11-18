@@ -850,7 +850,8 @@ button.pipe:hover { border-color: var(--line-strong); }
 /* ---- Ask Hub ---- */
 .ask-hub-btn { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--accent-line);
   background: var(--accent-soft); color: var(--accent); font-weight: 600; text-align: left; }
-.ask-hub-btn:hover, .ask-hub-btn.active { background: var(--accent); color: var(--accent-ink); }
+.ask-hub-btn.active { background: var(--accent); color: var(--accent-ink); }
+@media (hover: hover) { .ask-hub-btn:hover { background: var(--accent); color: var(--accent-ink); } }
 .ask-panel { position: fixed; top: 0; right: 0; bottom: 0; width: min(440px, 100vw); z-index: 1600; background: var(--surface);
   border-left: 1px solid var(--line); box-shadow: -8px 0 24px rgba(0, 0, 0, 0.12); display: flex; flex-direction: column; }
 .ask-head { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--line); }
@@ -883,3 +884,58 @@ button.pipe:hover { border-color: var(--line-strong); }
   .ask-hub-btn span { display: none; }
   .ask-hub-btn { width: auto; min-width: 40px; min-height: 40px; justify-content: center; padding: 8px; }
 }
+
+/* ---- Phones: keep every page inside the screen ---- */
+.mobile-only { display: none; }
+select { max-width: 100%; }
+.field, .list-filters > *, .form-grid > * { min-width: 0; }
+@media (max-width: 860px) {
+  /* The page grid must never grow wider than the screen to fit its content. */
+  .shell { grid-template-columns: minmax(0, 1fr); }
+  .page { min-width: 0; }
+  /* Top bar: logo, business switch, Ask Hub, theme, settings. Sign out moves to Settings. */
+  .sidebar { gap: 8px; padding: 8px 12px; overflow: hidden; }
+  .sidebar .brand > span:not(.logo) { display: none; }
+  .sidebar .brand { padding: 0; flex: none; }
+  .business-switch { flex: 0 1 auto; }
+  .business-switch button { padding: 6px 10px; font-size: 13px; white-space: nowrap; }
+  .sidebar-tools { flex: none; }
+  .sidebar-user { display: none; }
+  .mobile-only { display: inline-flex; }
+  /* iPhone Safari zooms in on any field under 16px and stays zoomed; 16px stops that. */
+  input:not([type='checkbox']):not([type='radio']):not([type='range']), select, textarea { font-size: 16px !important; }
+}
+/* Grids size to their widest single-line text unless told otherwise; keep cards to the column. */
+.cards, .card { grid-template-columns: minmax(0, 1fr); }
+.card { min-width: 0; }
+.field { grid-template-columns: minmax(0, 1fr); }
+.field > input, .field > select, .field > textarea { width: 100%; min-width: 0; }
+@media (max-width: 860px) {
+  .form-grid, .panel .form-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 560px) {
+  .contact-table th, .contact-table td { padding: 8px 6px; }
+  .contact-table th:first-child, .contact-table td:first-child { padding-left: 10px; }
+  /* The name column takes whatever width is left; long companies end in "…". */
+  .contact-table td:has(> .name-cell) { width: 100%; max-width: 0; }
+  .contact-table .name-cell { min-width: 0; overflow: hidden; }
+  .contact-table .name-cell > div { min-width: 0; }
+  .contact-table .name-cell > div > * { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .contact-table td:not(:has(> .name-cell)) { white-space: nowrap; }
+  .contact-table th { white-space: nowrap; }
+}
+/* Panel headers: buttons drop below the title rather than squeezing into a column. */
+.panel-head { flex-wrap: wrap; gap: 8px; }
+.panel-head > .inline-actions { flex-wrap: wrap; }
+@media (max-width: 560px) {
+  /* Page titles take the full width; their buttons go underneath. */
+  .page-head { flex-wrap: wrap; }
+  .list-page .page-head > div:first-child { flex: 1 1 100%; }
+  /* Segmented switches shrink to fit, and scroll sideways only if they still can't. */
+  .seg { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+  .seg::-webkit-scrollbar { display: none; }
+  .seg button { padding: 6px 10px; }
+}
+.list-page .page-head > .inline-actions { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px; }
+.due-actions { flex-wrap: wrap; }
+.due-actions .snooze { min-width: 0; }
