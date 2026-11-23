@@ -13,6 +13,28 @@ import {
 } from '../lib/opportunities';
 import type { Contact } from '../types';
 
+/** One line of facts about a listing or requirement: type, land, categories, size, price, designation, servicing, area, timing. */
+export function opportunityFacts(o: Opportunity, contact?: Contact): string[] {
+  const property = contact?.properties.find((p) => p.id === o.propertyId);
+  return [
+    o.kind === 'listing' ? (o.listingType === 'listed' ? 'Listed' : 'Off-market') : '',
+    property?.address ?? '',
+    o.categories.join(', '),
+    o.kind === 'listing' ? (o.acresMin != null ? `${o.acresMin} ac` : '') : rangeLabel(o.acresMin, o.acresMax, 'ac'),
+    o.kind === 'listing'
+      ? o.priceMin != null
+        ? `asking ${formatPrice(o.priceMin)}`
+        : ''
+      : rangeLabel(o.priceMin, o.priceMax, 'budget', formatPrice),
+    o.zoning.join(', '),
+    o.servicing !== 'unknown' ? (o.kind === 'listing' ? SERVICING_LABEL[o.servicing] : o.servicing === 'available' ? 'Needs servicing' : 'Servicing planned is fine') : '',
+    o.kind === 'requirement' && o.areaRadiusKm ? `within ${o.areaRadiusKm} km${o.areaLabel ? ` of ${o.areaLabel}` : ''}` : '',
+    o.kind === 'requirement' && o.regions.length ? o.regions.join(', ') : '',
+    o.assemblyWanted ? `Assembly${o.assemblyMinAcres ? ` (${o.assemblyMinAcres}+ ac total)` : ''}` : '',
+    o.targetDate ? `by ${formatDate(o.targetDate)}` : '',
+  ].filter(Boolean);
+}
+
 /** A contact's listings (land being shopped) and requirements (what they want to buy). */
 export function OpportunitiesPanel({ contact, disabled }: { contact: Contact; disabled?: boolean }) {
   const { opportunities, remove } = useOpportunities();
@@ -23,26 +45,7 @@ export function OpportunitiesPanel({ contact, disabled }: { contact: Contact; di
   const listings = mine.filter((o) => o.kind === 'listing');
   const requirements = mine.filter((o) => o.kind === 'requirement');
 
-  const facts = (o: Opportunity) => {
-    const property = contact.properties.find((p) => p.id === o.propertyId);
-    return [
-      o.kind === 'listing' ? (o.listingType === 'listed' ? 'Listed' : 'Off-market') : '',
-      property?.address ?? '',
-      o.categories.join(', '),
-      o.kind === 'listing' ? (o.acresMin != null ? `${o.acresMin} ac` : '') : rangeLabel(o.acresMin, o.acresMax, 'ac'),
-      o.kind === 'listing'
-        ? o.priceMin != null
-          ? `asking ${formatPrice(o.priceMin)}`
-          : ''
-        : rangeLabel(o.priceMin, o.priceMax, 'budget', formatPrice),
-      o.zoning.join(', '),
-      o.servicing !== 'unknown' ? (o.kind === 'listing' ? SERVICING_LABEL[o.servicing] : o.servicing === 'available' ? 'Needs servicing' : 'Servicing planned is fine') : '',
-      o.kind === 'requirement' && o.areaRadiusKm ? `within ${o.areaRadiusKm} km${o.areaLabel ? ` of ${o.areaLabel}` : ''}` : '',
-      o.kind === 'requirement' && o.regions.length ? o.regions.join(', ') : '',
-      o.assemblyWanted ? `Assembly${o.assemblyMinAcres ? ` (${o.assemblyMinAcres}+ ac total)` : ''}` : '',
-      o.targetDate ? `by ${formatDate(o.targetDate)}` : '',
-    ].filter(Boolean);
-  };
+  const facts = (o: Opportunity) => opportunityFacts(o, contact);
 
   const card = (o: Opportunity) => (
     <li key={o.id} className={`opp-card ${o.status !== 'open' ? 'closed' : ''}`}>

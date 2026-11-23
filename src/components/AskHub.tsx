@@ -419,7 +419,7 @@ function inline(s: string): ReactNode[] {
     if (m[1] !== undefined) out.push(<strong key={out.length}>{inline(m[1])}</strong>);
     else {
       const href = m[3];
-      if (/^\/(contacts|campaigns|map|prospects)\b/.test(href)) out.push(<Link key={out.length} to={href}>{m[2]}</Link>);
+      if (/^\/(contacts|campaigns|map|prospects|opportunities)\b/.test(href)) out.push(<Link key={out.length} to={href}>{m[2]}</Link>);
       else if (/^https:\/\//.test(href))
         out.push(
           <a key={out.length} href={href} target="_blank" rel="noopener noreferrer">

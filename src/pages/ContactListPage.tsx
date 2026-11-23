@@ -43,7 +43,8 @@ export default function ContactListPage({ kind }: { kind: Kind }) {
   const { profile, people, business } = useSession();
   const { contacts, loading, lastActivity, updateMany, archive } = useContacts();
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [creating, setCreating] = useState(false);
+  // ?new=1 (e.g. from the Opportunities page) opens the new-contact form straight away.
+  const [creating, setCreating] = useState(() => new URLSearchParams(window.location.search).get('new') === '1');
   const [confirmArchive, setConfirmArchive] = useState(false);
   const [campaignDraft, setCampaignDraft] = useState('');
 

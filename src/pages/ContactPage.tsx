@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ConsentPanel } from '../components/ConsentPanel';
 import { ContactForm } from '../components/ContactForm';
 import { EmailComposer } from '../components/EmailComposer';
@@ -32,6 +32,15 @@ export default function ContactPage() {
   // Archived contacts aren't in the shared list, so fetch them directly.
   const [archived, setArchived] = useState<Contact | null | undefined>(undefined);
   const contact = live ?? archived ?? undefined;
+
+  // Links like /contacts/ID#opportunities jump to that panel once the contact has loaded.
+  const { hash } = useLocation();
+  const loaded = !!contact;
+  useEffect(() => {
+    if (!loaded || !hash || hash === '#meetings') return;
+    const t = setTimeout(() => document.getElementById(hash.slice(1))?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 100);
+    return () => clearTimeout(t);
+  }, [hash, loaded, id]);
   const { activities, add, remove, reload: reloadActivities } = useActivities(id, reportError);
 
   const [editing, setEditing] = useState(false);
@@ -286,7 +295,7 @@ export default function ContactPage() {
           <MembershipPanel contact={contact} disabled={isArchived} />
 
           {(contact.isProspect || contact.properties.length > 0) && (
-            <section className="panel">
+            <section className="panel" id="properties">
               <div className="panel-head">
                 <h2>Properties</h2>
                 {!isArchived && (
