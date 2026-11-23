@@ -989,3 +989,25 @@ select { max-width: 100%; }
 }
 .new-person { align-self: flex-start; margin-top: 10px; }
 .panel-head .small-select { max-width: 220px; }
+
+/* ---- Opportunities: toolbar and list view ---- */
+.opp-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.opp-toolbar .result-count { margin-right: auto; }
+.opp-toolbar .sort select { max-width: 220px; }
+.dir-btn { min-width: 36px; justify-content: center; font-weight: 700; }
+.view-switch { margin-left: 4px; }
+.opp-table .name-cell { display: block; }
+.opp-row-title { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+.opp-table .name-cell .muted { display: block; }
+.opp-table .name-cell a { color: var(--accent); font-weight: 500; }
+.kind-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--s-contacted-fg); }
+.kind-dot.kind-listing { background: var(--accent); }
+.opp-table tr.closed td { opacity: 0.65; }
+.opp-table td.num a { font-weight: 600; color: var(--accent); }
+.opp-where { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 560px) {
+  .opp-toolbar .result-count { flex: 1 1 100%; }
+  .opp-toolbar .sort select { max-width: 180px; }
+  .opp-row-title { display: block; }
+  .kind-dot { display: inline-block; margin-right: 6px; vertical-align: 1px; }
+}

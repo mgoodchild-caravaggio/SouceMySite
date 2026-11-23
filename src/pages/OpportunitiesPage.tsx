@@ -10,12 +10,39 @@ import { PropertyEditor } from '../components/PropertyEditor';
 import { createMatchCampaign } from '../lib/campaigns';
 import { companyLabel, displayName, formatDate } from '../lib/filters';
 import { matchListing, matchRequirement } from '../lib/matching';
-import { LISTING_STATUSES, REQUIREMENT_STATUSES, statusLabel, useOpportunities, type Opportunity, type OpportunityKind } from '../lib/opportunities';
+import { formatPrice, LISTING_STATUSES, rangeLabel, REQUIREMENT_STATUSES, statusLabel, useOpportunities, type Opportunity, type OpportunityKind } from '../lib/opportunities';
 import { useSession } from '../lib/session';
 import { useContacts } from '../lib/store';
 import { CATEGORIES, REGIONS, type Contact } from '../types';
 
 type KindFilter = '' | OpportunityKind;
+type View = 'cards' | 'list';
+type SortKey = 'default' | 'updated' | 'title' | 'owner' | 'kind' | 'status' | 'acres' | 'price' | 'matches' | 'best' | 'timing';
+interface MatchInfo {
+  count: number;
+  byHand: number;
+  best?: { name: string; score: number };
+}
+
+/** Sort choices; `desc` is the direction a first click (or picking it from the menu) uses. */
+const SORTS: { id: SortKey; label: string; desc: boolean }[] = [
+  { id: 'default', label: 'Listings first, then newest', desc: false },
+  { id: 'updated', label: 'Recently updated', desc: true },
+  { id: 'matches', label: 'Most matches', desc: true },
+  { id: 'best', label: 'Best match score', desc: true },
+  { id: 'acres', label: 'Acres', desc: true },
+  { id: 'price', label: 'Price / budget', desc: true },
+  { id: 'timing', label: 'Timing (soonest)', desc: false },
+  { id: 'title', label: 'Title (A–Z)', desc: false },
+  { id: 'owner', label: 'Owner / buyer (A–Z)', desc: false },
+  { id: 'status', label: 'Status', desc: false },
+  { id: 'kind', label: 'Listing / requirement', desc: false },
+];
+const SORT_IDS = new Set(SORTS.map((x) => x.id));
+const STATUS_ORDER = ['open', 'under_offer', 'matched', 'sold', 'closed', 'withdrawn', 'dropped'];
+// The number a listing or requirement is sorted by for acres and price.
+const acresOf = (o: Opportunity) => (o.kind === 'listing' ? (o.acresMin ?? o.acresMax) : (o.acresMax ?? o.acresMin));
+const priceOf = (o: Opportunity) => (o.kind === 'listing' ? o.priceMin : (o.priceMax ?? o.priceMin));
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const STATUS_OPTIONS = [...new Set([...LISTING_STATUSES, ...REQUIREMENT_STATUSES].map((s) => s.id))];
 const PAGE = 50;
@@ -29,6 +56,10 @@ export default function OpportunitiesPage() {
   const [params, setParams] = useSearchParams();
 
   const kind = (params.get('kind') ?? '') as KindFilter;
+  const view: View = params.get('view') === 'list' ? 'list' : 'cards';
+  const sortKey: SortKey = SORT_IDS.has(params.get('sort') as SortKey) ? (params.get('sort') as SortKey) : 'default';
+  const sortDef = SORTS.find((x) => x.id === sortKey)!;
+  const desc = params.get('dir') ? params.get('dir') === 'desc' : sortDef.desc;
   const text = params.get('q') ?? '';
   const statuses = params.get('status') === 'any' ? [] : (params.get('status')?.split(',').filter(Boolean) ?? ['open']);
   const [categories, setCategories] = useState<string[]>([]);
@@ -59,7 +90,24 @@ export default function OpportunitiesPage() {
     [opportunities, byId, business],
   );
 
-  const rows = useMemo(() => {
+  // Match counts are worked out on demand and remembered until the data changes: only for the rows on
+  // screen, unless the list is sorted by matches (then for every row, so the order is right).
+  const matchCache = useMemo(() => new Map<string, MatchInfo | null>(), [data, byId]);
+  const infoFor = (o: Opportunity): MatchInfo | null => {
+    if (matchCache.has(o.id)) return matchCache.get(o.id)!;
+    const owner = byId.get(o.contactId);
+    let info: MatchInfo | null = null;
+    if (owner && o.status === 'open') {
+      const subject = { opportunity: o, contact: owner, property: owner.properties.find((p) => p.id === o.propertyId) };
+      const r = o.kind === 'listing' ? matchListing(subject, data) : matchRequirement(subject, data);
+      const top = r.find((x) => !x.manual || x.manual.scored) ?? r[0];
+      info = { count: r.length, byHand: r.filter((x) => x.manual).length, best: top && { name: displayName(top.contact), score: top.manual && !top.manual.scored ? -1 : top.score } };
+    }
+    matchCache.set(o.id, info);
+    return info;
+  };
+
+  const filtered = useMemo(() => {
     const q = text.trim().toLowerCase();
     return inBusiness
       .filter((o) => !kind || o.kind === kind)
@@ -77,26 +125,79 @@ export default function OpportunitiesPage() {
         const owner = byId.get(o.contactId);
         const property = owner?.properties.find((p) => p.id === o.propertyId);
         return [o.title, o.notes, o.areaLabel, owner ? displayName(owner) : '', owner?.company ?? '', property?.address ?? ''].join(' ').toLowerCase().includes(q);
-      })
-      .sort((a, b) => (a.kind === b.kind ? 0 : a.kind === 'listing' ? -1 : 1) || Number(a.needsDetail) - Number(b.needsDetail) || b.updatedAt.localeCompare(a.updatedAt));
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inBusiness, kind, text, params.get('status'), categories, regions, listingType, needsDetail, byId]);
 
-  // Match counts and the best match, only for the rows on screen (matching every draft is wasted work).
-  const visible = rows.slice(0, shown);
-  const matchInfo = useMemo(() => {
-    const out = new Map<string, { count: number; byHand: number; best?: { name: string; score: number } }>();
-    for (const o of visible) {
-      const owner = byId.get(o.contactId);
-      if (!owner || o.status !== 'open') continue;
-      const subject = { opportunity: o, contact: owner, property: owner.properties.find((p) => p.id === o.propertyId) };
-      const r = o.kind === 'listing' ? matchListing(subject, data) : matchRequirement(subject, data);
-      const top = r.find((x) => !x.manual || x.manual.scored) ?? r[0];
-      out.set(o.id, { count: r.length, byHand: r.filter((x) => x.manual).length, best: top && { name: displayName(top.contact), score: top.manual && !top.manual.scored ? -1 : top.score } });
+  const rows = useMemo(() => {
+    const ownerName = (o: Opportunity) => {
+      const c = byId.get(o.contactId);
+      return c ? displayName(c) : '';
+    };
+    // What each sort compares; undefined always sorts last, whichever the direction.
+    const value = (o: Opportunity): string | number | undefined => {
+      switch (sortKey) {
+        case 'updated':
+          return o.updatedAt;
+        case 'title':
+          return o.title.toLowerCase();
+        case 'owner':
+          return ownerName(o).toLowerCase();
+        case 'kind':
+          return o.kind;
+        case 'status':
+          return STATUS_ORDER.indexOf(o.status);
+        case 'acres':
+          return acresOf(o);
+        case 'price':
+          return priceOf(o);
+        case 'timing':
+          return o.targetDate;
+        case 'matches':
+          return infoFor(o)?.count;
+        case 'best': {
+          const b = infoFor(o)?.best?.score;
+          return b != null && b >= 0 ? b : undefined;
+        }
+        default:
+          return undefined;
+      }
+    };
+    const list = [...filtered];
+    if (sortKey === 'default') {
+      list.sort((a, b) => (a.kind === b.kind ? 0 : a.kind === 'listing' ? -1 : 1) || Number(a.needsDetail) - Number(b.needsDetail) || b.updatedAt.localeCompare(a.updatedAt));
+      return desc ? list.reverse() : list;
     }
-    return out;
+    const sign = desc ? -1 : 1;
+    return list.sort((a, b) => {
+      const va = value(a);
+      const vb = value(b);
+      if (va === undefined || va === '') return vb === undefined || vb === '' ? 0 : 1;
+      if (vb === undefined || vb === '') return -1;
+      const c = typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb));
+      // Ties fall back to the most recently updated.
+      return sign * c || b.updatedAt.localeCompare(a.updatedAt);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible.map((o) => o.id + o.updatedAt).join(), data, byId]);
+  }, [filtered, sortKey, desc, matchCache, byId]);
+
+  const visible = rows.slice(0, shown);
+
+  const setSort = (key: SortKey, dir?: 'asc' | 'desc') => {
+    const next = new URLSearchParams(params);
+    if (key === 'default') next.delete('sort');
+    else next.set('sort', key);
+    const def = SORTS.find((x) => x.id === key)!;
+    if (!dir || (dir === 'desc') === def.desc) next.delete('dir');
+    else next.set('dir', dir);
+    setParams(next, { replace: true });
+    setShown(PAGE);
+  };
+  // Clicking a column header sorts by it; clicking again flips the direction.
+  const clickHeader = (key: SortKey) => {
+    if (key === sortKey) setSort(key, desc ? 'asc' : 'desc');
+    else setSort(key);
+  };
 
   const counts = {
     listings: inBusiness.filter((o) => o.kind === 'listing' && o.status === 'open').length,
@@ -104,6 +205,16 @@ export default function OpportunitiesPage() {
     drafts: inBusiness.filter((o) => o.needsDetail && o.status === 'open').length,
   };
   const filtersOn = !!(categories.length || regions.length || listingType || needsDetail || text || kind || params.get('status'));
+  const clearFilters = () => {
+    setCategories([]);
+    setRegions([]);
+    setListingType('');
+    setNeedsDetail(false);
+    // Keep the view and sort; clear only the filters.
+    const next = new URLSearchParams();
+    for (const k of ['view', 'sort', 'dir']) if (params.get(k)) next.set(k, params.get(k)!);
+    setParams(next, { replace: true });
+  };
 
   async function startCampaign(o: Opportunity, owner: Contact) {
     setStarting(o.id);
@@ -180,17 +291,7 @@ export default function OpportunitiesPage() {
             Needs detail
           </button>
           {filtersOn && (
-            <button
-              type="button"
-              className="link-btn"
-              onClick={() => {
-                setCategories([]);
-                setRegions([]);
-                setListingType('');
-                setNeedsDetail(false);
-                setParams(new URLSearchParams(), { replace: true });
-              }}
-            >
+            <button type="button" className="link-btn" onClick={clearFilters}>
               Clear filters
             </button>
           )}
@@ -208,85 +309,194 @@ export default function OpportunitiesPage() {
         </div>
       ) : (
         <>
-          <p className="muted small result-count">
-            {rows.length} {rows.length === 1 ? 'opportunity' : 'opportunities'}
-          </p>
-          <ul className="opp-list opp-board">
-            {visible.map((o) => {
-              const owner = byId.get(o.contactId);
-              const m = matchInfo.get(o.id);
-              return (
-                <li key={o.id} className={`opp-card ${o.status !== 'open' ? 'closed' : ''}`}>
-                  <div className="opp-head">
-                    <span className={`tag kind-${o.kind}`}>{o.kind === 'listing' ? 'Listing' : 'Requirement'}</span>
-                    <strong className="opp-title">{o.title || (o.kind === 'listing' ? 'Listing' : 'Requirement')}</strong>
-                    <span className={`tag opp-${o.status}`}>{statusLabel(o.status)}</span>
-                    {o.needsDetail && <span className="tag needs-detail">Needs detail</span>}
-                  </div>
-                  <div className="small">
-                    {owner ? (
-                      <>
-                        <Link to={`/contacts/${owner.id}#opportunities`}>{displayName(owner)}</Link>
-                        {companyLabel(owner) && <span className="muted"> · {companyLabel(owner)}</span>}
-                        {owner.phone && (
-                          <>
-                            {' · '}
-                            <a href={`tel:${owner.phone.replace(/\D/g, '')}`}>{owner.phone}</a>
-                          </>
-                        )}
-                      </>
-                    ) : (
-                      <span className="muted">Contact archived or not loaded</span>
-                    )}
-                  </div>
-                  <div className="muted small opp-facts">{opportunityFacts(o, owner).join(' · ') || 'No details yet'}</div>
-                  <div className="opp-foot">
-                    <span className="small">
-                      {o.status !== 'open' ? (
-                        <span className="muted">Not matched while {statusLabel(o.status).toLowerCase()}</span>
-                      ) : m && m.count > 0 ? (
+          <div className="opp-toolbar">
+            <p className="muted small result-count">
+              {rows.length} {rows.length === 1 ? 'opportunity' : 'opportunities'}
+            </p>
+            <label className="sort">
+              <span className="small">Sort</span>
+              <select aria-label="Sort by" value={sortKey} onChange={(e) => setSort(e.target.value as SortKey)}>
+                {SORTS.map((x) => (
+                  <option key={x.id} value={x.id}>
+                    {x.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              className="chip-btn dir-btn"
+              onClick={() => setSort(sortKey, desc ? 'asc' : 'desc')}
+              aria-label={desc ? 'Sorted high to low; switch to low to high' : 'Sorted low to high; switch to high to low'}
+              title={desc ? 'High to low (newest, most, largest first)' : 'Low to high (oldest, fewest, smallest first)'}
+            >
+              {desc ? '↓' : '↑'}
+            </button>
+            <div className="seg small view-switch" role="group" aria-label="View">
+              {(['cards', 'list'] as const).map((v) => (
+                <button key={v} type="button" aria-pressed={view === v} className={view === v ? 'on' : ''} onClick={() => setParam('view', v === 'cards' ? '' : v)}>
+                  {v === 'cards' ? 'Cards' : 'List'}
+                </button>
+              ))}
+            </div>
+          </div>
+          {view === 'cards' ? (
+            <ul className="opp-list opp-board">
+              {visible.map((o) => {
+                const owner = byId.get(o.contactId);
+                const m = infoFor(o);
+                return (
+                  <li key={o.id} className={`opp-card ${o.status !== 'open' ? 'closed' : ''}`}>
+                    <div className="opp-head">
+                      <span className={`tag kind-${o.kind}`}>{o.kind === 'listing' ? 'Listing' : 'Requirement'}</span>
+                      <strong className="opp-title">{o.title || (o.kind === 'listing' ? 'Listing' : 'Requirement')}</strong>
+                      <span className={`tag opp-${o.status}`}>{statusLabel(o.status)}</span>
+                      {o.needsDetail && <span className="tag needs-detail">Needs detail</span>}
+                    </div>
+                    <div className="small">
+                      {owner ? (
                         <>
-                          <strong>{m.count}</strong> {m.count === 1 ? 'match' : 'matches'}
-                          {m.byHand > 0 && <span className="muted"> ({m.byHand} by hand)</span>}
-                          {m.best && m.best.score >= 0 && (
-                            <span className="muted">
-                              {' '}
-                              · best: {m.best.name} ({m.best.score})
-                            </span>
+                          <Link to={`/contacts/${owner.id}#opportunities`}>{displayName(owner)}</Link>
+                          {companyLabel(owner) && <span className="muted"> · {companyLabel(owner)}</span>}
+                          {owner.phone && (
+                            <>
+                              {' · '}
+                              <a href={`tel:${owner.phone.replace(/\D/g, '')}`}>{owner.phone}</a>
+                            </>
                           )}
                         </>
                       ) : (
-                        <span className="muted">No matches yet</span>
+                        <span className="muted">Contact archived or not loaded</span>
                       )}
-                    </span>
-                    <span className="muted small">Updated {formatDate(o.updatedAt)}</span>
-                  </div>
-                  <div className="inline-actions">
-                    {owner && (
-                      <button type="button" className="btn small" onClick={() => setEditing({ o, contact: owner })}>
-                        {o.needsDetail ? 'Add details' : 'Edit'}
-                      </button>
-                    )}
-                    {m && m.count > 0 && (
-                      <Link className="btn small" to={`/map?match=${o.id}`}>
-                        Show matches on map
-                      </Link>
-                    )}
-                    {owner && o.status === 'open' && (
-                      <button type="button" className="btn small" onClick={() => setAddingTo(o)}>
-                        + Add a match
-                      </button>
-                    )}
-                    {owner && o.status === 'open' && (
-                      <button type="button" className="link-btn small" disabled={starting === o.id} onClick={() => startCampaign(o, owner)}>
-                        Start a campaign
-                      </button>
-                    )}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+                    </div>
+                    <div className="muted small opp-facts">{opportunityFacts(o, owner).join(' · ') || 'No details yet'}</div>
+                    <div className="opp-foot">
+                      <span className="small">
+                        {o.status !== 'open' ? (
+                          <span className="muted">Not matched while {statusLabel(o.status).toLowerCase()}</span>
+                        ) : m && m.count > 0 ? (
+                          <>
+                            <strong>{m.count}</strong> {m.count === 1 ? 'match' : 'matches'}
+                            {m.byHand > 0 && <span className="muted"> ({m.byHand} by hand)</span>}
+                            {m.best && m.best.score >= 0 && (
+                              <span className="muted">
+                                {' '}
+                                · best: {m.best.name} ({m.best.score})
+                              </span>
+                            )}
+                          </>
+                        ) : (
+                          <span className="muted">No matches yet</span>
+                        )}
+                      </span>
+                      <span className="muted small">Updated {formatDate(o.updatedAt)}</span>
+                    </div>
+                    <div className="inline-actions">
+                      {owner && (
+                        <button type="button" className="btn small" onClick={() => setEditing({ o, contact: owner })}>
+                          {o.needsDetail ? 'Add details' : 'Edit'}
+                        </button>
+                      )}
+                      {m && m.count > 0 && (
+                        <Link className="btn small" to={`/map?match=${o.id}`}>
+                          Show matches on map
+                        </Link>
+                      )}
+                      {owner && o.status === 'open' && (
+                        <button type="button" className="btn small" onClick={() => setAddingTo(o)}>
+                          + Add a match
+                        </button>
+                      )}
+                      {owner && o.status === 'open' && (
+                        <button type="button" className="link-btn small" disabled={starting === o.id} onClick={() => startCampaign(o, owner)}>
+                          Start a campaign
+                        </button>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <div className="table-wrap">
+              <table className="contact-table opp-table">
+                <thead>
+                  <tr>
+                    <SortTh k="title" label="Opportunity" sortKey={sortKey} desc={desc} onSort={clickHeader} />
+                    <SortTh k="kind" label="Type" sortKey={sortKey} desc={desc} onSort={clickHeader} className="hide-sm" />
+                    <SortTh k="status" label="Status" sortKey={sortKey} desc={desc} onSort={clickHeader} />
+                    <SortTh k="acres" label="Acres" sortKey={sortKey} desc={desc} onSort={clickHeader} className="num hide-sm" />
+                    <SortTh k="price" label="Price / budget" sortKey={sortKey} desc={desc} onSort={clickHeader} className="num hide-sm" />
+                    <th className="hide-md">Where</th>
+                    <SortTh k="matches" label="Matches" sortKey={sortKey} desc={desc} onSort={clickHeader} className="num" />
+                    <SortTh k="best" label="Best match" sortKey={sortKey} desc={desc} onSort={clickHeader} className="hide-md" />
+                    <SortTh k="timing" label="Timing" sortKey={sortKey} desc={desc} onSort={clickHeader} className="hide-md" />
+                    <SortTh k="updated" label="Updated" sortKey={sortKey} desc={desc} onSort={clickHeader} className="hide-sm" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {visible.map((o) => {
+                    const owner = byId.get(o.contactId);
+                    const m = infoFor(o);
+                    const property = owner?.properties.find((p) => p.id === o.propertyId);
+                    const where =
+                      o.kind === 'listing'
+                        ? property?.address
+                        : o.areaRadiusKm
+                          ? `${o.areaRadiusKm} km${o.areaLabel ? ` of ${o.areaLabel}` : ''}`
+                          : o.regions.join(', ');
+                    const price = priceOf(o);
+                    return (
+                      <tr key={o.id} className={o.status !== 'open' ? 'closed' : ''} onClick={() => owner && setEditing({ o, contact: owner })} title="Open to edit">
+                        <td>
+                          <div className="name-cell">
+                            <div>
+                              <span className="opp-row-title">
+                                <span className={`kind-dot kind-${o.kind}`} aria-label={o.kind === 'listing' ? 'Listing' : 'Requirement'} />
+                                {o.title}
+                              </span>
+                              <span className="muted small">
+                                {owner ? (
+                                  <Link to={`/contacts/${owner.id}#opportunities`} onClick={(e) => e.stopPropagation()}>
+                                    {displayName(owner)}
+                                  </Link>
+                                ) : (
+                                  'Contact archived'
+                                )}
+                                {o.needsDetail && ' · needs detail'}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="hide-sm">
+                          <span className={`tag kind-${o.kind}`}>{o.kind === 'listing' ? (o.listingType === 'listed' ? 'Listed' : 'Off-market') : 'Requirement'}</span>
+                        </td>
+                        <td>
+                          <span className={`tag opp-${o.status}`}>{statusLabel(o.status)}</span>
+                        </td>
+                        <td className="num hide-sm">{o.kind === 'listing' ? (o.acresMin ?? '') : rangeLabel(o.acresMin, o.acresMax, '').trim()}</td>
+                        <td className="num hide-sm">{price != null ? (o.kind === 'listing' ? formatPrice(price) : rangeLabel(o.priceMin, o.priceMax, '', formatPrice).trim()) : ''}</td>
+                        <td className="hide-md opp-where">{where}</td>
+                        <td className="num">
+                          {m && m.count > 0 ? (
+                            <Link to={`/map?match=${o.id}`} onClick={(e) => e.stopPropagation()} title="Show matches on the map">
+                              {m.count}
+                              {m.byHand > 0 && <span className="muted"> ({m.byHand}✓)</span>}
+                            </Link>
+                          ) : (
+                            <span className="muted">{m ? 0 : '—'}</span>
+                          )}
+                        </td>
+                        <td className="hide-md">{m?.best && m.best.score >= 0 ? `${m.best.name} (${m.best.score})` : ''}</td>
+                        <td className="hide-md">{o.targetDate ? formatDate(o.targetDate) : ''}</td>
+                        <td className="hide-sm nowrap">{formatDate(o.updatedAt)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
           {rows.length > shown && (
             <button type="button" className="btn small load-more" onClick={() => setShown((n) => n + PAGE)}>
               Show {Math.min(PAGE, rows.length - shown)} more of {rows.length - shown}
@@ -417,5 +627,18 @@ function PickLabel({ c }: { c: Contact }) {
           .join(' · ')}
       </span>
     </span>
+  );
+}
+
+/** A sortable column header: shows ↑/↓ on the active column. */
+function SortTh({ k, label, sortKey, desc, onSort, className }: { k: SortKey; label: string; sortKey: SortKey; desc: boolean; onSort: (k: SortKey) => void; className?: string }) {
+  const active = sortKey === k;
+  return (
+    <th className={className} aria-sort={active ? (desc ? 'descending' : 'ascending') : 'none'}>
+      <button type="button" className="th-sort" onClick={() => onSort(k)}>
+        {label}
+        {active && <span aria-hidden="true"> {desc ? '↓' : '↑'}</span>}
+      </button>
+    </th>
   );
 }
