@@ -164,11 +164,43 @@ const toRow = (o: OpportunityInput) => ({
   notes: o.notes,
 });
 
+/** A match someone added by hand: an opportunity and a contact (and optionally one of that contact's opportunities). */
+export interface ManualMatch {
+  id: string;
+  opportunityId: string;
+  contactId: string;
+  otherOpportunityId?: string;
+  note: string;
+  createdBy?: string;
+  createdAt: string;
+}
+interface ManualRow {
+  id: string;
+  opportunity_id: string;
+  contact_id: string;
+  other_opportunity_id: string | null;
+  note: string;
+  created_by: string | null;
+  created_at: string;
+}
+const manualFromRow = (r: ManualRow): ManualMatch => ({
+  id: r.id,
+  opportunityId: r.opportunity_id,
+  contactId: r.contact_id,
+  otherOpportunityId: r.other_opportunity_id ?? undefined,
+  note: r.note,
+  createdBy: r.created_by ?? undefined,
+  createdAt: r.created_at,
+});
+
 interface Value {
   opportunities: Opportunity[];
+  manualMatches: ManualMatch[];
   loading: boolean;
   save: (input: OpportunityInput, id?: string) => Promise<string>;
   remove: (id: string) => Promise<string>;
+  addManualMatch: (m: { opportunityId: string; contactId: string; otherOpportunityId?: string; note: string }) => Promise<string>;
+  removeManualMatch: (id: string) => Promise<string>;
 }
 
 const Ctx = createContext<Value | null>(null);
@@ -176,6 +208,7 @@ const Ctx = createContext<Value | null>(null);
 /** Loads every opportunity once per sign-in (they're needed for matching), and saves changes. */
 export function OpportunitiesProvider({ children }: { children: ReactNode }) {
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
+  const [manualMatches, setManualMatches] = useState<ManualMatch[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -189,8 +222,16 @@ export function OpportunitiesProvider({ children }: { children: ReactNode }) {
         all.push(...(data as Row[]));
         if (data.length < 1000) break;
       }
+      const manual: ManualRow[] = [];
+      for (let from = 0; ; from += 1000) {
+        const { data, error } = await supabase.from('opportunity_matches').select('*').order('created_at').order('id').range(from, from + 999);
+        if (error || !data) break;
+        manual.push(...(data as ManualRow[]));
+        if (data.length < 1000) break;
+      }
       if (!cancelled) {
         setOpportunities(all.map(fromRow));
+        setManualMatches(manual.map(manualFromRow));
         setLoading(false);
       }
     })();
@@ -214,10 +255,30 @@ export function OpportunitiesProvider({ children }: { children: ReactNode }) {
     const { error } = await supabase.from('opportunities').delete().eq('id', id);
     if (error) return error.message;
     setOpportunities((prev) => prev.filter((o) => o.id !== id));
+    // Their hand-added matches go with them (the database does the same).
+    setManualMatches((prev) => prev.filter((m) => m.opportunityId !== id).map((m) => (m.otherOpportunityId === id ? { ...m, otherOpportunityId: undefined } : m)));
     return '';
   }, []);
 
-  return <Ctx.Provider value={{ opportunities, loading, save, remove }}>{children}</Ctx.Provider>;
+  const addManualMatch = useCallback(async (m: { opportunityId: string; contactId: string; otherOpportunityId?: string; note: string }) => {
+    const { data, error } = await supabase
+      .from('opportunity_matches')
+      .insert({ opportunity_id: m.opportunityId, contact_id: m.contactId, other_opportunity_id: m.otherOpportunityId ?? null, note: m.note.trim() })
+      .select()
+      .single();
+    if (error) return error.code === '23505' ? 'They are already matched to this by hand.' : error.message;
+    setManualMatches((prev) => [...prev, manualFromRow(data as ManualRow)]);
+    return '';
+  }, []);
+
+  const removeManualMatch = useCallback(async (id: string) => {
+    const { error } = await supabase.from('opportunity_matches').delete().eq('id', id);
+    if (error) return error.message;
+    setManualMatches((prev) => prev.filter((m) => m.id !== id));
+    return '';
+  }, []);
+
+  return <Ctx.Provider value={{ opportunities, manualMatches, loading, save, remove, addManualMatch, removeManualMatch }}>{children}</Ctx.Provider>;
 }
 
 export function useOpportunities() {

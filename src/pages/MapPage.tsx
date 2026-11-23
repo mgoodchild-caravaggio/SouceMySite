@@ -4,6 +4,7 @@ import { MatchRow } from '../components/MatchesPanel';
 import { matchListing, matchRequirement } from '../lib/matching';
 import { useOpportunities } from '../lib/opportunities';
 import { MapView } from '../components/MapView';
+import { AddMatchDialog } from '../components/AddMatchDialog';
 import { MultiSelect } from '../components/MultiSelect';
 import { PlaceSearch } from '../components/PlaceSearch';
 import { ProspectCard } from '../components/ProspectCard';
@@ -35,7 +36,7 @@ export default function MapPage() {
   const { business } = useSession();
   const { contacts, loading, update } = useContacts();
   // The map shows prospects in the business picked in the sidebar.
-  const { opportunities } = useOpportunities();
+  const { opportunities, manualMatches } = useOpportunities();
   const [params, setParams] = useSearchParams();
   const matchId = params.get('match');
 
@@ -46,7 +47,7 @@ export default function MapPage() {
     const owner = opportunity && contacts.find((c) => c.id === opportunity.contactId);
     if (!opportunity || !owner) return null;
     const property = owner.properties.find((p) => p.id === opportunity.propertyId);
-    const data = { contacts, opportunities };
+    const data = { contacts, opportunities, manual: manualMatches };
     const results = opportunity.kind === 'listing' ? matchListing({ opportunity, contact: owner, property }, data) : matchRequirement({ opportunity, contact: owner }, data);
     const point =
       opportunity.kind === 'listing'
@@ -55,7 +56,7 @@ export default function MapPage() {
           ? { lat: opportunity.areaLat, lng: opportunity.areaLng }
           : undefined;
     return { opportunity, owner, property, results, point, radiusKm: opportunity.areaRadiusKm ?? 25 };
-  }, [matchId, opportunities, contacts]);
+  }, [matchId, opportunities, contacts, manualMatches]);
 
   const businessProspects = useMemo(() => contacts.filter((c) => c.isProspect && c.business === business), [contacts, business]);
   // In match mode the map shows the subject's land and the matches' land; otherwise every prospect.
@@ -90,6 +91,7 @@ export default function MapPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matchState?.opportunity.id, matchState?.point?.lat, matchState?.point?.lng]);
 
+  const [addingMatch, setAddingMatch] = useState(false);
   const exitMatch = () => {
     const next = new URLSearchParams(params);
     next.delete('match');
@@ -367,6 +369,9 @@ export default function MapPage() {
                   <span className="muted small">
                     {matchState.results.length} match{matchState.results.length === 1 ? '' : 'es'} · for {matchState.owner.firstName} {matchState.owner.lastName}
                   </span>
+                  <button type="button" className="btn small" onClick={() => setAddingMatch(true)}>
+                    + Add a match
+                  </button>
                   <button type="button" className="btn small" onClick={exitMatch}>
                     Exit match mode
                   </button>
@@ -452,6 +457,7 @@ export default function MapPage() {
       <button type="button" className="view-toggle" onClick={() => setMobileView((v) => (v === 'map' ? 'list' : 'map'))}>
         {mobileView === 'map' ? `List (${matches.length})` : 'Map'}
       </button>
+      {addingMatch && matchState && <AddMatchDialog opportunity={matchState.opportunity} onClose={() => setAddingMatch(false)} />}
     </div>
   );
 }

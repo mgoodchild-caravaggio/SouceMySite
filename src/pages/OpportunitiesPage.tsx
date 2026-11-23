@@ -1,9 +1,12 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { AddMatchDialog } from '../components/AddMatchDialog';
+import { ContactForm } from '../components/ContactForm';
 import { Dialog } from '../components/Dialog';
 import { MultiSelect } from '../components/MultiSelect';
 import { opportunityFacts } from '../components/OpportunitiesPanel';
 import { OpportunityEditor } from '../components/OpportunityEditor';
+import { PropertyEditor } from '../components/PropertyEditor';
 import { createMatchCampaign } from '../lib/campaigns';
 import { companyLabel, displayName, formatDate } from '../lib/filters';
 import { matchListing, matchRequirement } from '../lib/matching';
@@ -21,7 +24,7 @@ const PAGE = 50;
 export default function OpportunitiesPage() {
   const { business } = useSession();
   const { contacts, loading: contactsLoading } = useContacts();
-  const { opportunities, loading } = useOpportunities();
+  const { opportunities, manualMatches, loading } = useOpportunities();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
 
@@ -36,6 +39,7 @@ export default function OpportunitiesPage() {
   const [creating, setCreating] = useState<OpportunityKind | null>(null);
   const [editing, setEditing] = useState<{ o: Opportunity; contact: Contact } | null>(null);
   const [starting, setStarting] = useState('');
+  const [addingTo, setAddingTo] = useState<Opportunity | null>(null);
   const [error, setError] = useState('');
 
   const setParam = (key: string, value: string) => {
@@ -47,7 +51,7 @@ export default function OpportunitiesPage() {
   };
 
   const byId = useMemo(() => new Map(contacts.map((c) => [c.id, c])), [contacts]);
-  const data = useMemo(() => ({ contacts, opportunities }), [contacts, opportunities]);
+  const data = useMemo(() => ({ contacts, opportunities, manual: manualMatches }), [contacts, opportunities, manualMatches]);
 
   // Everything in this business, before the filters, for the counts.
   const inBusiness = useMemo(
@@ -81,13 +85,14 @@ export default function OpportunitiesPage() {
   // Match counts and the best match, only for the rows on screen (matching every draft is wasted work).
   const visible = rows.slice(0, shown);
   const matchInfo = useMemo(() => {
-    const out = new Map<string, { count: number; best?: { name: string; score: number } }>();
+    const out = new Map<string, { count: number; byHand: number; best?: { name: string; score: number } }>();
     for (const o of visible) {
       const owner = byId.get(o.contactId);
       if (!owner || o.status !== 'open') continue;
       const subject = { opportunity: o, contact: owner, property: owner.properties.find((p) => p.id === o.propertyId) };
       const r = o.kind === 'listing' ? matchListing(subject, data) : matchRequirement(subject, data);
-      out.set(o.id, { count: r.length, best: r[0] && { name: displayName(r[0].contact), score: r[0].score } });
+      const top = r.find((x) => !x.manual || x.manual.scored) ?? r[0];
+      out.set(o.id, { count: r.length, byHand: r.filter((x) => x.manual).length, best: top && { name: displayName(top.contact), score: top.manual && !top.manual.scored ? -1 : top.score } });
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -242,7 +247,8 @@ export default function OpportunitiesPage() {
                       ) : m && m.count > 0 ? (
                         <>
                           <strong>{m.count}</strong> {m.count === 1 ? 'match' : 'matches'}
-                          {m.best && (
+                          {m.byHand > 0 && <span className="muted"> ({m.byHand} by hand)</span>}
+                          {m.best && m.best.score >= 0 && (
                             <span className="muted">
                               {' '}
                               · best: {m.best.name} ({m.best.score})
@@ -267,6 +273,11 @@ export default function OpportunitiesPage() {
                       </Link>
                     )}
                     {owner && o.status === 'open' && (
+                      <button type="button" className="btn small" onClick={() => setAddingTo(o)}>
+                        + Add a match
+                      </button>
+                    )}
+                    {owner && o.status === 'open' && (
                       <button type="button" className="link-btn small" disabled={starting === o.id} onClick={() => startCampaign(o, owner)}>
                         Start a campaign
                       </button>
@@ -285,6 +296,7 @@ export default function OpportunitiesPage() {
       )}
 
       {creating && <NewOpportunity kind={creating} onClose={() => setCreating(null)} />}
+      {addingTo && <AddMatchDialog opportunity={addingTo} onClose={() => setAddingTo(null)} />}
       {editing && <OpportunityEditor contact={editing.contact} kind={editing.o.kind} opportunity={editing.o} onClose={() => setEditing(null)} />}
     </div>
   );
@@ -293,9 +305,18 @@ export default function OpportunitiesPage() {
 /** Pick who the listing or requirement belongs to, then fill it in with the usual editor. */
 function NewOpportunity({ kind, onClose }: { kind: OpportunityKind; onClose: () => void }) {
   const { business } = useSession();
-  const { contacts } = useContacts();
+  const { contacts, addProperty } = useContacts();
   const [text, setText] = useState('');
-  const [contact, setContact] = useState<Contact | null>(null);
+  // pick someone → (new contact) → (their property, for a listing) → the listing or requirement itself
+  const [step, setStep] = useState<'pick' | 'newContact' | 'property' | 'editor'>('pick');
+  const [contactId, setContactId] = useState('');
+  // Read from the store so a property added a moment ago is there.
+  const contact = contacts.find((c) => c.id === contactId) ?? null;
+  const choose = (c: Contact) => {
+    setContactId(c.id);
+    setStep(kind === 'listing' && !c.properties.length ? 'property' : 'editor');
+  };
+  const who = kind === 'listing' ? 'owner' : 'buyer';
 
   const results = useMemo(() => {
     const q = text.trim().toLowerCase();
@@ -307,14 +328,51 @@ function NewOpportunity({ kind, onClose }: { kind: OpportunityKind; onClose: () 
     return hits.slice(0, 12);
   }, [text, contacts, business, kind]);
 
-  if (contact) return <OpportunityEditor contact={contact} kind={kind} onClose={onClose} />;
+  if (step === 'editor' && contact) return <OpportunityEditor contact={contact} kind={kind} onClose={onClose} />;
+
+  if (step === 'newContact') {
+    const words = text.trim().split(/\s+/).filter(Boolean);
+    return (
+      <ContactForm
+        initial={{
+          isProspect: true,
+          firstName: words[0] ?? '',
+          lastName: words.slice(1).join(' '),
+          customerTypes: [kind === 'listing' ? 'Seller' : 'Buyer'],
+        }}
+        onSaved={(c) => {
+          setContactId(c.id);
+          setStep(kind === 'listing' ? 'property' : 'editor');
+        }}
+        // The form closes itself after saving; only go back to the picker if it was cancelled.
+        onClose={() => setStep((s) => (s === 'newContact' ? 'pick' : s))}
+      />
+    );
+  }
+
+  if (step === 'property' && contact) {
+    return (
+      <>
+        <PropertyEditor
+          onSave={async (input) => {
+            await addProperty(contact.id, input);
+            setStep('editor');
+          }}
+          onClose={() => setStep((s) => (s === 'property' ? 'pick' : s))}
+        />
+        <p className="sr-only" role="status">
+          Add the land {displayName(contact)} is selling, then fill in the listing.
+        </p>
+      </>
+    );
+  }
 
   return (
     <Dialog title={kind === 'listing' ? 'New listing: whose land?' : 'New requirement: who is buying?'} onClose={onClose}>
       <p className="muted small">
         {kind === 'listing'
-          ? 'Pick the owner. A listing is one of their properties, so they need a property on the map first.'
-          : 'Pick the buyer, builder/developer or investor who wants land.'}
+          ? 'Pick the owner, or add a new one. A listing is one of their properties; if they have none yet, you’ll add it next.'
+          : 'Pick the buyer, builder/developer or investor who wants land, or add a new one.'}
       </p>
       <input type="search" className="text-filter wide" placeholder="Search by name, company, phone or address" value={text} onChange={(e) => setText(e.target.value)} autoFocus />
       {!text.trim() && results.length > 0 && <p className="muted small">{kind === 'listing' ? 'Sellers with property:' : 'Buyers, builders and investors:'}</p>}
@@ -325,14 +383,12 @@ function NewOpportunity({ kind, onClose }: { kind: OpportunityKind; onClose: () 
             <li key={c.id}>
               {/* An owner with no property can't have a listing yet: show the way to add one instead of a button. */}
               {blocked ? (
-                <div className="pick-row blocked">
+                <button type="button" className="pick-row" onClick={() => choose(c)}>
                   <PickLabel c={c} />
-                  <Link className="small" to={`/contacts/${c.id}#properties`} onClick={onClose}>
-                    Add a property first
-                  </Link>
-                </div>
+                  <span className="link-btn small">Add their property</span>
+                </button>
               ) : (
-                <button type="button" className="pick-row" onClick={() => setContact(c)}>
+                <button type="button" className="pick-row" onClick={() => choose(c)}>
                   <PickLabel c={c} />
                   <span className="link-btn small">Choose</span>
                 </button>
@@ -340,12 +396,12 @@ function NewOpportunity({ kind, onClose }: { kind: OpportunityKind; onClose: () 
             </li>
           );
         })}
-        {text.trim() && !results.length && (
-          <li className="muted small">
-            No one by that name. <Link to="/prospects?new=1" onClick={onClose}>Add them as a prospect</Link> first.
-          </li>
-        )}
+        {text.trim() && !results.length && <li className="muted small">No one by that name in Hub yet.</li>}
       </ul>
+      <button type="button" className="btn small new-person" onClick={() => setStep('newContact')}>
+        + New {who}
+        {text.trim() && !results.length ? `: ${text.trim()}` : ''}
+      </button>
     </Dialog>
   );
 }

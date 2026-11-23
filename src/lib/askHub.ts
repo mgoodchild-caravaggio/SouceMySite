@@ -11,7 +11,7 @@ import { CONSENT_LABEL, consentState, displayName, followUpState, todayIso } fro
 import { haversineKm } from './geo';
 import { KIND_LABEL, matchListing, matchRequirement, nearbyFor, type MatchResult } from './matching';
 import { callFunction } from './outlook';
-import type { Opportunity } from './opportunities';
+import type { ManualMatch, Opportunity } from './opportunities';
 import { searchPlaces } from './services';
 import { supabase } from './supabase';
 import type { Business, Contact, LatLng } from '../types';
@@ -76,6 +76,7 @@ export const aiAdmin = (body: Record<string, unknown>) => callFunction<Omit<AiSt
 export interface ToolContext {
   contacts: Contact[];
   opportunities: Opportunity[];
+  manual?: ManualMatch[];
   business: Business;
   myId: string;
   people: { id: string; displayName: string }[];
@@ -149,6 +150,7 @@ const matchSummary = (m: MatchResult) => ({
   score: m.score,
   contact: { id: m.contact.id, name: displayName(m.contact), company: m.contact.company === 'tbd' ? '' : m.contact.company, phone: m.contact.phone || undefined },
   kind: KIND_LABEL[m.kind],
+  added_by_hand: m.manual ? true : undefined,
   reasons: m.reasons.map((r) => (r.tone === 'bad' ? `✗ ${r.text}` : r.text)),
   their_opportunity: m.opportunity?.id,
   property: m.property?.address,
@@ -250,7 +252,7 @@ export async function runTool(name: string, input: Record<string, unknown>, ctx:
       const owner = o && byId.get(o.contactId);
       if (!o || !owner) return JSON.stringify({ error: 'No listing or requirement with that id.' });
       const subject = { opportunity: o, contact: owner, property: owner.properties.find((p) => p.id === o.propertyId) };
-      const data = { contacts: ctx.contacts, opportunities: ctx.opportunities };
+      const data = { contacts: ctx.contacts, opportunities: ctx.opportunities, manual: ctx.manual };
       const results = o.kind === 'listing' ? matchListing(subject, data) : matchRequirement(subject, data);
       const limit = num(input.limit, 15, 50);
       return JSON.stringify({ for: oppSummary(o, ctx), total: results.length, matches: results.slice(0, limit).map(matchSummary) });

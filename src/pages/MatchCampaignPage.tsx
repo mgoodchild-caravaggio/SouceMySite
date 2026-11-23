@@ -38,7 +38,7 @@ export function MatchCampaign({ campaign, reload }: { campaign: Campaign; reload
   const navigate = useNavigate();
   const { profile, people } = useSession();
   const { contacts, loading } = useContacts();
-  const { opportunities } = useOpportunities();
+  const { opportunities, manualMatches } = useOpportunities();
   const { members, error, setError, add, update, remove } = useMembers(campaign.id);
 
   const [name, setName] = useState(campaign.name);
@@ -91,7 +91,7 @@ export function MatchCampaign({ campaign, reload }: { campaign: Campaign; reload
   }, [criteria, campaign.id, setError]);
 
   // ---- Candidates and members ----
-  const data = useMemo(() => ({ contacts, opportunities }), [contacts, opportunities]);
+  const data = useMemo(() => ({ contacts, opportunities, manual: manualMatches }), [contacts, opportunities, manualMatches]);
   const candidates = useMemo(
     () => campaignCandidates(campaign.business, criteria, opportunity && owner ? { opportunity, contact: owner, property } : null, data),
     [campaign.business, criteria, opportunity, owner, property, data],

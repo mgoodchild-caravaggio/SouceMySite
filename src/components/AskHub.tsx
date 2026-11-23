@@ -54,7 +54,7 @@ export function AskHub() {
 function AskHubPanel({ onClose }: { onClose: () => void }) {
   const { profile, people, business } = useSession();
   const { contacts } = useContacts();
-  const { opportunities } = useOpportunities();
+  const { opportunities, manualMatches } = useOpportunities();
   const { status } = useAiStatus();
   const location = useLocation();
   const [saved, setSaved] = useState<Saved>(load);
@@ -103,6 +103,7 @@ function AskHubPanel({ onClose }: { onClose: () => void }) {
   const ctx: ToolContext = {
     contacts,
     opportunities,
+    manual: manualMatches,
     business,
     myId: profile.id,
     people,

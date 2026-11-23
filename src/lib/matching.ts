@@ -7,7 +7,7 @@
 
 import { haversineKm } from './geo';
 import { formatPrice } from './format';
-import type { Opportunity } from './opportunities';
+import type { ManualMatch, Opportunity } from './opportunities';
 import type { Contact, LatLng, Property } from '../types';
 
 export type ReasonTone = 'good' | 'ok' | 'bad';
@@ -22,6 +22,7 @@ export type MatchKind =
   | 'property' // an owner's (unlisted) property that fits a requirement: a "would you sell?" call
   | 'active_nearby' // a builder/developer or investor with land nearby
   | 'neighbour' // an adjoining owner, for a land assembly
+  | 'manual' // added by hand, with no listing or requirement of their own attached
   | 'in_area' // anyone with land inside a campaign's map area
   | 'looking_here'; // a buyer whose search area covers a campaign's map area
 
@@ -35,6 +36,8 @@ export interface MatchResult {
   /** The property involved (the candidate's land, or the listing's property). */
   property?: Property;
   distanceKm?: number;
+  /** Set when someone added this match by hand. `scored` says whether the engine also found it. */
+  manual?: { id: string; note: string; scored: boolean };
 }
 
 /** What we're matching from: a listing (with its property) or a requirement. */
@@ -195,10 +198,15 @@ const isActiveType = (c: Contact) => c.customerTypes.includes('Builder/Developer
 interface Data {
   contacts: Contact[];
   opportunities: Opportunity[];
+  /** Hand-added matches; they go to the top of the results. */
+  manual?: ManualMatch[];
 }
 
 /** People who fit a listing: buyer requirements, then builders/investors nearby, then (for assemblies) neighbours. */
 export function matchListing(subject: MatchSubject, data: Data): MatchResult[] {
+  return withManual(subject, engineListing(subject, data), data);
+}
+function engineListing(subject: MatchSubject, data: Data): MatchResult[] {
   const { opportunity: listing, contact: owner, property } = subject;
   if (!property) return [];
   const land = landFacts(property, owner, listing);
@@ -249,6 +257,9 @@ export function matchListing(subject: MatchSubject, data: Data): MatchResult[] {
 
 /** Land that fits a requirement: open listings first, then owners whose land fits but isn't listed. */
 export function matchRequirement(subject: MatchSubject, data: Data): MatchResult[] {
+  return withManual(subject, engineRequirement(subject, data), data);
+}
+function engineRequirement(subject: MatchSubject, data: Data): MatchResult[] {
   const { opportunity: req, contact: buyer } = subject;
   const byId = new Map(data.contacts.map((c) => [c.id, c]));
   const results: MatchResult[] = [];
@@ -352,9 +363,9 @@ function nearestProperty(c: Contact, point: LatLng): { property: Property; km: n
   return best;
 }
 
-const KIND_ORDER: Record<MatchKind, number> = { requirement: 0, listing: 0, looking_here: 0, property: 1, in_area: 1, active_nearby: 2, neighbour: 3 };
+const KIND_ORDER: Record<MatchKind, number> = { requirement: 0, listing: 0, manual: 0, looking_here: 0, property: 1, in_area: 1, active_nearby: 2, neighbour: 3 };
 function sortResults(results: MatchResult[]) {
-  return results.sort((a, b) => b.score - a.score || KIND_ORDER[a.kind] - KIND_ORDER[b.kind] || (a.distanceKm ?? 99) - (b.distanceKm ?? 99));
+  return results.sort((a, b) => Number(!!b.manual) - Number(!!a.manual) || b.score - a.score || KIND_ORDER[a.kind] - KIND_ORDER[b.kind] || (a.distanceKm ?? 99) - (b.distanceKm ?? 99));
 }
 
 export const KIND_LABEL: Record<MatchKind, string> = {
@@ -363,6 +374,7 @@ export const KIND_LABEL: Record<MatchKind, string> = {
   property: 'Unlisted land',
   active_nearby: 'Active nearby',
   neighbour: 'Neighbour',
+  manual: 'Added by hand',
   in_area: 'Land in area',
   looking_here: 'Buyer looking here',
 };
@@ -440,4 +452,45 @@ export function campaignCandidates(
         any(criteria.regions, r.contact.regions),
     ),
   );
+}
+
+/**
+ * Puts hand-added matches at the top. A match added on either side shows on both: a buyer's requirement
+ * matched to a listing appears on the listing (the buyer) and on the requirement (the listing's owner).
+ * If the engine found the same person, its score and reasons are kept and the match is marked as by hand.
+ */
+function withManual(subject: MatchSubject, results: MatchResult[], data: Data): MatchResult[] {
+  const id = subject.opportunity.id;
+  const rows = (data.manual ?? []).filter((m) => m.opportunityId === id || m.otherOpportunityId === id);
+  if (!rows.length) return results;
+  const byId = new Map(data.contacts.map((c) => [c.id, c]));
+  const oppById = new Map(data.opportunities.map((o) => [o.id, o]));
+  const out = [...results];
+  for (const m of rows) {
+    // From the subject's side, the "other" person is the contact on the row, or the owner of the row's opportunity.
+    const forward = m.opportunityId === id;
+    const other = forward ? (m.otherOpportunityId ? oppById.get(m.otherOpportunityId) : undefined) : oppById.get(m.opportunityId);
+    const contact = byId.get(forward ? m.contactId : (other?.contactId ?? ''));
+    if (!contact || contact.archivedAt || contact.id === subject.contact.id) continue;
+    const reason: Reason = { text: m.note ? `By hand: ${m.note}` : 'Added by hand', tone: 'good' };
+    const existing = out.findIndex((r) => r.contact.id === contact.id);
+    if (existing >= 0) {
+      const r = out[existing];
+      out[existing] = { ...r, opportunity: r.opportunity ?? other, manual: { id: m.id, note: m.note, scored: true }, reasons: [reason, ...r.reasons] };
+      continue;
+    }
+    const property = other?.propertyId ? contact.properties.find((p) => p.id === other.propertyId) : contact.properties[0];
+    const from = subject.property ?? (subject.opportunity.areaLat != null && subject.opportunity.areaLng != null ? { lat: subject.opportunity.areaLat, lng: subject.opportunity.areaLng } : undefined);
+    out.push({
+      contact,
+      kind: other ? (other.kind === 'listing' ? 'listing' : 'requirement') : 'manual',
+      opportunity: other,
+      property,
+      score: 0,
+      reasons: [reason, ...(other ? [{ text: other.title, tone: 'ok' as const }] : [])],
+      distanceKm: from && property ? haversineKm(from, property) : undefined,
+      manual: { id: m.id, note: m.note, scored: false },
+    });
+  }
+  return sortResults(out);
 }
