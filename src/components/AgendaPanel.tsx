@@ -14,7 +14,7 @@ import type { Contact } from '../types';
  * Clicking a linked meeting opens that contact's Meetings panel, where it can be cancelled.
  */
 export function AgendaPanel({ days = 4, refreshKey = 0 }: { days?: number; refreshKey?: number }) {
-  const { profile } = useSession();
+  const { profile, people } = useSession();
   const { contacts } = useContacts();
   const { connections } = useOutlookConnections();
   const navigate = useNavigate();
@@ -43,11 +43,13 @@ export function AgendaPanel({ days = 4, refreshKey = 0 }: { days?: number; refre
     };
   }, [conn, days, refreshKey]);
 
+  // Teammates are on lots of invites; their addresses are never matched to contact records.
   const byEmail = useMemo(() => {
+    const team = new Set(people.map((p) => p.email.toLowerCase()));
     const map = new Map<string, Contact>();
-    for (const c of contacts) if (c.email) map.set(c.email.toLowerCase(), c);
+    for (const c of contacts) if (c.email && !team.has(c.email.toLowerCase())) map.set(c.email.toLowerCase(), c);
     return map;
-  }, [contacts]);
+  }, [contacts, people]);
   const byId = useMemo(() => new Map(contacts.map((c) => [c.id, c])), [contacts]);
 
   /** The contacts a meeting belongs to: the Hub booking's contact first, then any attendee matches. */

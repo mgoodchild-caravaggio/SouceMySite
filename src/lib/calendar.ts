@@ -76,6 +76,15 @@ export interface OutlookEvent {
   emails: string[];
   joinUrl: string | null;
   webLink: string;
+  // Fuller details, for the Calendar page.
+  isOrganizer?: boolean;
+  organizer?: { name: string; email: string } | null;
+  attendees?: { name: string; email: string; response: string }[];
+  /** none | organizer | accepted | tentativelyAccepted | declined | notResponded */
+  myResponse?: string;
+  recurring?: boolean;
+  categories?: string[];
+  preview?: string;
 }
 
 export interface BusyBlock {
@@ -84,7 +93,27 @@ export interface BusyBlock {
   status: string;
 }
 
-export const fetchEvents = (start: string, end: string) => callFunction<{ events: OutlookEvent[] }>('calendar-events', { start, end });
+export const fetchEvents = (start: string, end: string) => callFunction<{ events: OutlookEvent[]; truncated?: boolean }>('calendar-events', { start, end });
+
+/** A new event with no contact (meetings with a contact use scheduleMeeting). Times are Toronto wall times. */
+export interface NewEventInput {
+  subject: string;
+  start: string;
+  end: string;
+  allDay: boolean;
+  location: string;
+  notes: string;
+  teammateIds: string[];
+  emails: string[];
+  teams: boolean;
+  showAs: 'busy' | 'free';
+}
+export const createEvent = (input: NewEventInput) => callFunction<{ id: string }>('calendar-event', { action: 'create', ...input });
+export const updateEvent = (id: string, patch: Partial<Pick<NewEventInput, 'subject' | 'start' | 'end' | 'allDay' | 'location' | 'notes'>>) =>
+  callFunction('calendar-event', { action: 'update', id, ...patch });
+export const cancelEvent = (id: string, comment = '') => callFunction('calendar-event', { action: 'cancel', id, comment });
+export const respondToEvent = (id: string, response: 'accept' | 'tentative' | 'decline', comment = '') =>
+  callFunction('calendar-event', { action: 'respond', id, response, comment });
 
 export const fetchFreeBusy = (emails: string[], start: string, end: string) =>
   callFunction<{ people: { email: string; error: string | null; busy: BusyBlock[] }[] }>('calendar-freebusy', { emails, start, end });
@@ -139,3 +168,12 @@ export const formatWallTime = (wall: string) => TIME_FMT.format(new Date(`2000-0
 /** "Thu, Nov 20" for a wall time or date. */
 export const formatWallDay = (wall: string) =>
   new Intl.DateTimeFormat('en-CA', { weekday: 'short', month: 'short', day: 'numeric' }).format(new Date(`${wall.slice(0, 10)}T12:00:00`));
+
+/** "YYYY-MM-DD" plus n days. */
+export const addDays = (day: string, n: number) => {
+  const d = new Date(`${day}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+/** 0 = Sunday … 6 = Saturday, for a "YYYY-MM-DD". */
+export const weekdayOf = (day: string) => new Date(`${day}T12:00:00Z`).getUTCDay();

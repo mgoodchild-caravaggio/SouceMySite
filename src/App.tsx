@@ -12,6 +12,7 @@ import DashboardPage from './pages/DashboardPage';
 import SettingsPage from './pages/SettingsPage';
 import CampaignsPage from './pages/CampaignsPage';
 import OpportunitiesPage from './pages/OpportunitiesPage';
+import CalendarPage from './pages/CalendarPage';
 import CampaignPage from './pages/CampaignPage';
 import ArchivePage from './pages/ArchivePage';
 import ContactListPage from './pages/ContactListPage';
@@ -43,6 +44,7 @@ export default function App({ session }: { session: Session }) {
               <Route path="archive" element={<ArchivePage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="opportunities" element={<OpportunitiesPage />} />
+              <Route path="calendar" element={<CalendarPage />} />
               <Route path="campaigns" element={<CampaignsPage />} />
               <Route path="campaigns/:id" element={<CampaignPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
@@ -62,6 +64,7 @@ export default function App({ session }: { session: Session }) {
 
 const NAV = [
   { to: '/', label: 'Dashboard', icon: 'M3 13h8V3H3v10Zm0 8h8v-6H3v6Zm10 0h8V11h-8v10Zm0-18v6h8V3h-8Z' },
+  { to: '/calendar', label: 'Calendar', short: 'Cal', icon: 'M7 2v2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2V2h-2v2H9V2H7Zm12 8v10H5V10h14ZM7 12h4v4H7v-4Z' },
   { to: '/map', label: 'Map', icon: 'M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12Zm0-9.4a2.6 2.6 0 1 1 0-5.2 2.6 2.6 0 0 1 0 5.2Z' },
   { to: '/prospects', label: 'Prospects', icon: 'M3 5h18v2H3V5Zm0 6h18v2H3v-2Zm0 6h12v2H3v-2Z' },
   { to: '/opportunities', label: 'Opportunities', short: 'Opps', icon: 'M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8ZM7.5 9a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z' },

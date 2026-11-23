@@ -24,12 +24,15 @@ const DURATIONS = [15, 30, 45, 60, 90, 120];
 
 interface Props {
   contact: Contact;
+  /** Start on this day and time (Toronto, "YYYY-MM-DD" and "HH:mm"), e.g. a slot clicked on the Calendar. */
+  initialDate?: string;
+  initialTime?: string;
   onClose: () => void;
   onScheduled: (m: Meeting, followUpDay: string | null) => void;
 }
 
 /** Book a call, meeting or site visit into Outlook, checking your and teammates' free/busy. */
-export function ScheduleDialog({ contact, onClose, onScheduled }: Props) {
+export function ScheduleDialog({ contact, initialDate, initialTime, onClose, onScheduled }: Props) {
   const { profile, people } = useSession();
   const { connections } = useOutlookConnections();
   const connected = connections?.some((c) => c.userId === profile.id && !c.lastError);
@@ -38,8 +41,8 @@ export function ScheduleDialog({ contact, onClose, onScheduled }: Props) {
   const [kind, setKind] = useState<MeetingKind>(contact.properties.length ? 'site_visit' : 'call');
   const [subjectEdited, setSubjectEdited] = useState(false);
   const [subject, setSubject] = useState('');
-  const [date, setDate] = useState(tomorrow);
-  const [time, setTime] = useState('10:00');
+  const [date, setDate] = useState(initialDate ?? tomorrow);
+  const [time, setTime] = useState(initialTime ?? '10:00');
   const [duration, setDuration] = useState(60);
   const [propertyId, setPropertyId] = useState(contact.properties[0]?.id ?? '');
   const [location, setLocation] = useState('');

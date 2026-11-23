@@ -142,7 +142,7 @@ export default function SettingsPage() {
         </form>
       </section>
 
-      <section className="panel">
+      <section className="panel" id="outlook">
         <h2>Outlook</h2>
         <p className="muted">
           Connect your Microsoft 365 account so Hub can show your calendar, schedule meetings with contacts, and send emails from your
