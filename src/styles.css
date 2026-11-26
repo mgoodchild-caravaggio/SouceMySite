@@ -31,6 +31,7 @@
   /* Status tags: background / text pairs */
   --s-prospect-bg: #eef1f4; --s-prospect-fg: #47525e;
   --s-contacted-bg: #e6effd; --s-contacted-fg: #1e4fb4;
+  --cal-st-bg: #f3e8fd; --cal-st-fg: #7a2db5;
   --s-lead-bg: #fff3d6; --s-lead-fg: #8a5a00;
   --s-active-bg: #dcf3e8; --s-active-fg: #13724a;
   --s-unqualified-bg: #fbe4e4; --s-unqualified-fg: #a12b2b;
@@ -64,7 +65,7 @@
     --route: #7aa5f7; --warn: #f0a35c; --warn-strong: #f5c38a; --warn-soft: #33250f; --warn-line: #5a4220;
     --danger: #f28b82; --danger-fill: #c5372b; --danger-line: #5c2622; --success: #4cc38a;
     --info-soft: #152238; --info-line: #26385c; --camp-bg: #1e2340; --camp-line: #2d3560; --camp-ink: #aab5f5;
-    --s-prospect-bg: #252d35; --s-prospect-fg: #c3ccd5; --s-contacted-bg: #172a4a; --s-contacted-fg: #9cbcf7;
+    --s-prospect-bg: #252d35; --s-prospect-fg: #c3ccd5; --s-contacted-bg: #172a4a; --s-contacted-fg: #9cbcf7; --cal-st-bg: #34204a; --cal-st-fg: #d7b4f7;
     --s-lead-bg: #3a2d0e; --s-lead-fg: #f2c561; --s-active-bg: #123526; --s-active-fg: #6ad49e;
     --s-unqualified-bg: #3d1a1a; --s-unqualified-fg: #f4a3a3; --avatar-other-bg: #262b3b; --avatar-other-fg: #bcc1da;
     --map-bg: #1a2026; --pin-out: #6b7681; --pin-ring: #e6eaee; --pin-hot: #ff8a3d;
@@ -82,7 +83,7 @@
   --route: #7aa5f7; --warn: #f0a35c; --warn-strong: #f5c38a; --warn-soft: #33250f; --warn-line: #5a4220;
   --danger: #f28b82; --danger-fill: #c5372b; --danger-line: #5c2622; --success: #4cc38a;
   --info-soft: #152238; --info-line: #26385c; --camp-bg: #1e2340; --camp-line: #2d3560; --camp-ink: #aab5f5;
-  --s-prospect-bg: #252d35; --s-prospect-fg: #c3ccd5; --s-contacted-bg: #172a4a; --s-contacted-fg: #9cbcf7;
+  --s-prospect-bg: #252d35; --s-prospect-fg: #c3ccd5; --s-contacted-bg: #172a4a; --s-contacted-fg: #9cbcf7; --cal-st-bg: #34204a; --cal-st-fg: #d7b4f7;
   --s-lead-bg: #3a2d0e; --s-lead-fg: #f2c561; --s-active-bg: #123526; --s-active-fg: #6ad49e;
   --s-unqualified-bg: #3d1a1a; --s-unqualified-fg: #f4a3a3; --avatar-other-bg: #262b3b; --avatar-other-fg: #bcc1da;
   --map-bg: #1a2026; --pin-out: #6b7681; --pin-ring: #e6eaee; --pin-hot: #ff8a3d;
@@ -1201,3 +1202,19 @@ button.chip-toggle { cursor: pointer; }
 .finding-source { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .finding-actions { display: flex; gap: 8px; align-items: center; margin-left: auto; }
 .research-new .field select { width: 100%; }
+
+/* ---- Calendar: Real Estate and Staging overlaid ---- */
+.cal-legend { display: flex; gap: 6px; flex-wrap: wrap; }
+.cal-legend-item { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--text); border-radius: 999px; padding: 3px 10px; font: inherit; font-size: 13px; cursor: pointer; }
+.cal-legend-item.off { color: var(--muted); }
+.cal-legend-item.off .cal-swatch { background: transparent; }
+.cal-swatch, .cal-dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; border: 2px solid var(--s-contacted-fg); background: var(--s-contacted-fg); flex: none; }
+.cal-st .cal-swatch, .cal-dot.cal-st { border-color: var(--cal-st-fg); background: var(--cal-st-fg); }
+.cal-dot { vertical-align: -1px; }
+.ev-calendar { margin: 0; }
+.calendar-page.overlay .cal-ev.cal-st { background: var(--cal-st-bg); color: var(--cal-st-fg); border-left-color: var(--cal-st-fg); }
+.calendar-page.overlay .cal-ev.cal-re { background: var(--s-contacted-bg); color: var(--s-contacted-fg); border-left-color: var(--s-contacted-fg); }
+/* Overlaid, colour says which calendar; a teal edge says it was booked in Hub. */
+.calendar-page.overlay .cal-ev.ev-hub { border-left: 4px solid var(--accent); }
+.calendar-page.overlay .cal-ev.ev-free { background: var(--surface); }
+.agenda .a-time .cal-dot { margin-right: 5px; }

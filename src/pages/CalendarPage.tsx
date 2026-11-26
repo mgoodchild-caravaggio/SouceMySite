@@ -7,7 +7,7 @@ import {
   addMinutes,
   cancelEvent,
   createEvent,
-  fetchEvents,
+  fetchCombinedEvents,
   formatWallTime,
   minutesOfDay,
   respondToEvent,
@@ -17,11 +17,11 @@ import {
   type OutlookEvent,
 } from '../lib/calendar';
 import { companyLabel, displayName } from '../lib/filters';
-import { connectionFor, connectOutlook, useOutlookConnections } from '../lib/outlook';
+import { connectionFor, connectOutlook, useOutlookConnections, workingConnections } from '../lib/outlook';
 import { useSession } from '../lib/session';
 import { useContacts } from '../lib/store';
 import { supabase } from '../lib/supabase';
-import type { Contact } from '../types';
+import type { Business, Contact } from '../types';
 
 type View = 'day' | 'week' | 'month' | 'list';
 const VIEWS: { id: View; label: string }[] = [
@@ -103,9 +103,14 @@ function layoutDay(events: OutlookEvent[], day: string) {
   return out;
 }
 
+/** Each calendar's colour class. */
+const CAL_CLASS: Record<Business, string> = { 'Real Estate': 'cal-re', Staging: 'cal-st' };
+const HIDDEN_KEY = 'hub.calendar.hidden';
+
 const eventClass = (e: OutlookEvent, hub: boolean) =>
   [
     'cal-ev',
+    e.business ? CAL_CLASS[e.business] : '',
     hub ? 'ev-hub' : '',
     e.showAs === 'free' ? 'ev-free' : '',
     e.showAs === 'tentative' || e.myResponse === 'tentativelyAccepted' ? 'ev-tentative' : '',
@@ -117,7 +122,8 @@ const eventClass = (e: OutlookEvent, hub: boolean) =>
 
 /**
  * Your Outlook calendar in Hub: see it by day, week, month or as a list, and add, change or cancel events.
- * It's the calendar of the business picked in the sidebar: Real Estate and Staging have separate mailboxes.
+ * Real Estate and Staging have separate mailboxes; every one you've connected is shown together, each in
+ * its own colour, and the legend switches each on or off.
  */
 export default function CalendarPage() {
   const { profile, people, business } = useSession();
@@ -125,6 +131,32 @@ export default function CalendarPage() {
   const { connections } = useOutlookConnections();
   const [params, setParams] = useSearchParams();
   const conn = connectionFor(connections, profile.id, business);
+  // Every working mailbox of yours, Real Estate first.
+  const mine = useMemo(() => workingConnections(connections, profile.id), [connections, profile.id]);
+  const [hidden, setHidden] = useState<Set<Business>>(() => {
+    try {
+      return new Set(JSON.parse(localStorage.getItem(HIDDEN_KEY) ?? '[]') as Business[]);
+    } catch {
+      return new Set();
+    }
+  });
+  const visible = mine.filter((c) => !hidden.has(c.business));
+  const visibleKey = visible.map((c) => c.business).join('|');
+  const overlay = mine.length > 1;
+  const toggleCalendar = (b: Business) => {
+    const next = new Set(hidden);
+    if (next.has(b)) next.delete(b);
+    else if (visible.length > 1) next.add(b); // always keep one showing
+    else return;
+    setHidden(next);
+    try {
+      localStorage.setItem(HIDDEN_KEY, JSON.stringify([...next]));
+    } catch {
+      // Not remembered in private windows; that's fine.
+    }
+  };
+  // New events go in the sidebar's business when that calendar is connected.
+  const defaultCalendar: Business | undefined = mine.some((c) => c.business === business) ? business : mine[0]?.business;
   const today = wallFromDate(new Date()).slice(0, 10);
 
   const view: View = (VIEWS.some((v) => v.id === params.get('view')) ? params.get('view') : isPhone() ? 'day' : 'week') as View;
@@ -158,30 +190,30 @@ export default function CalendarPage() {
   const [reloadKey, setReloadKey] = useState(0);
   const reload = useCallback(() => setReloadKey((k) => k + 1), []);
 
-  // A different business is a different mailbox: don't show the old one's events meanwhile.
+  // Showing a different set of calendars: don't show the old events meanwhile.
   useEffect(() => {
     setEvents(null);
     setHubEvents(new Map());
-  }, [business]);
+  }, [visibleKey]);
 
   useEffect(() => {
-    if (!conn || conn.lastError) return;
+    if (!visibleKey) return;
     let cancelled = false;
     setError('');
-    fetchEvents(business, `${from}T00:00`, `${to}T00:00`)
-      .then(async (r) => {
+    fetchCombinedEvents(visibleKey.split('|') as Business[], `${from}T00:00`, `${to}T00:00`)
+      .then(async ({ events: merged, problems }) => {
         if (cancelled) return;
-        setEvents(r.events);
-        const ids = r.events.map((e) => e.id);
+        setError(problems.join(' · '));
+        setEvents(merged);
+        const ids = merged.map((e) => e.id);
         if (!ids.length) return setHubEvents(new Map());
         const { data } = await supabase.from('meetings').select('outlook_event_id, contact_id').in('outlook_event_id', ids).eq('status', 'scheduled');
         if (!cancelled) setHubEvents(new Map((data ?? []).map((m) => [m.outlook_event_id as string, m.contact_id as string])));
-      })
-      .catch((e) => !cancelled && setError((e as Error).message));
+      });
     return () => {
       cancelled = true;
     };
-  }, [conn, business, from, to, reloadKey]);
+  }, [visibleKey, from, to, reloadKey]);
 
   // Keep it fresh when you come back to the tab (e.g. after accepting something in Outlook).
   useEffect(() => {
@@ -226,7 +258,7 @@ export default function CalendarPage() {
   };
 
   // ---- Not connected ----
-  if (connections && (!conn || conn.lastError)) {
+  if (connections && !mine.length) {
     return (
       <div className="detail-page calendar-page">
         <header className="page-head">
@@ -259,13 +291,34 @@ export default function CalendarPage() {
   const title = titleFor(view, anchor, days);
 
   return (
-    <div className="calendar-page">
+    <div className={`calendar-page ${overlay ? 'overlay' : ''}`}>
       <header className="cal-head">
         <div className="cal-title">
           <h1>Calendar</h1>
           <span className="muted cal-range">{title}</span>
-          {conn && <span className="muted small cal-mailbox" title={`${business} calendar`}>{conn.mailbox}</span>}
+          {!overlay && visible[0] && (
+            <span className="muted small cal-mailbox" title={`${visible[0].business} calendar`}>
+              {visible[0].mailbox}
+            </span>
+          )}
         </div>
+        {overlay && (
+          <div className="cal-legend" role="group" aria-label="Calendars to show">
+            {mine.map((c) => (
+              <button
+                key={c.business}
+                type="button"
+                className={`cal-legend-item ${CAL_CLASS[c.business]} ${hidden.has(c.business) ? 'off' : ''}`}
+                aria-pressed={!hidden.has(c.business)}
+                title={`${c.mailbox}: click to ${hidden.has(c.business) ? 'show' : 'hide'}`}
+                onClick={() => toggleCalendar(c.business)}
+              >
+                <span className="cal-swatch" aria-hidden="true" />
+                {c.business}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="cal-controls">
           <button type="button" className="btn small" onClick={() => go({ date: today })} disabled={days.includes(today) && view !== 'month'}>
             Today
@@ -291,6 +344,14 @@ export default function CalendarPage() {
         </div>
       </header>
       {error && <p className="notice warn cal-notice">{error}</p>}
+      {connections && (!conn || conn.lastError) && (
+        <p className="notice cal-notice small">
+          {conn?.lastError ? `Your ${business} mailbox needs reconnecting` : `Your ${business} mailbox isn't connected`}, so its calendar isn't shown.{' '}
+          <button type="button" className="link-btn small" onClick={() => connectOutlook(business).catch((e) => setError((e as Error).message))}>
+            {conn?.lastError ? 'Reconnect it' : 'Connect it'}
+          </button>
+        </p>
+      )}
 
       {events === null && !error ? (
         <p className="muted cal-notice">Loading your calendar…</p>
@@ -305,6 +366,7 @@ export default function CalendarPage() {
       {selected && (
         <EventDetails
           e={selected}
+          showCalendar={overlay}
           hubContact={byId.get(hubEvents.get(selected.id) ?? '')}
           contacts={contactsFor(selected)}
           onClose={() => setSelected(null)}
@@ -321,6 +383,8 @@ export default function CalendarPage() {
       {form && (
         <EventForm
           event={form.event}
+          calendars={mine.map((c) => c.business)}
+          defaultCalendar={defaultCalendar ?? business}
           date={form.date}
           time={form.time}
           onClose={() => setForm(null)}
@@ -558,6 +622,7 @@ const RESPONSE_LABEL: Record<string, string> = {
 /** One event: when, where, who (linked to Hub contacts), and what you can do with it. */
 function EventDetails({
   e,
+  showCalendar,
   hubContact,
   contacts,
   onClose,
@@ -565,13 +630,16 @@ function EventDetails({
   onChanged,
 }: {
   e: OutlookEvent;
+  showCalendar?: boolean;
   hubContact?: Contact;
   contacts: Contact[];
   onClose: () => void;
   onEdit: () => void;
   onChanged: () => void;
 }) {
-  const { people, business } = useSession();
+  const { people, business: sidebarBusiness } = useSession();
+  // Changes go to the calendar the event came from.
+  const business = e.business ?? sidebarBusiness;
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const [confirming, setConfirming] = useState(false);
@@ -644,6 +712,12 @@ function EventDetails({
           {e.showAs === 'free' && <span className="tag">Shown as free</span>}
           {isInvite && e.myResponse && <span className="tag">{RESPONSE_LABEL[e.myResponse] ?? e.myResponse}</span>}
         </p>
+        {showCalendar && e.business && (
+          <p className="small ev-calendar">
+            <span className={`cal-dot ${CAL_CLASS[e.business]}`} aria-hidden="true" /> {e.business} calendar
+            {e.alsoIn?.length ? <span className="muted"> · also in your {e.alsoIn.join(' and ')} calendar</span> : null}
+          </p>
+        )}
         {e.location && <p className="small">📍 {e.location}</p>}
         {e.joinUrl && (
           <p>
@@ -712,6 +786,8 @@ function EventDetails({
 /** Add an event, or change an existing one's title, time, place and notes. */
 function EventForm({
   event,
+  calendars,
+  defaultCalendar,
   date,
   time,
   onClose,
@@ -719,15 +795,20 @@ function EventForm({
   onWithContact,
 }: {
   event?: OutlookEvent;
+  /** The calendars you can add to (your connected mailboxes). */
+  calendars: Business[];
+  defaultCalendar: Business;
   date: string;
   time: string;
   onClose: () => void;
   onSaved: () => void;
   onWithContact: (c: Contact, date: string, time: string) => void;
 }) {
-  const { profile, people, business } = useSession();
+  const { profile, people } = useSession();
   const { contacts, loading } = useContacts();
   const editing = !!event;
+  // An existing event stays in its calendar; a new one goes where you pick.
+  const [business, setBusiness] = useState<Business>(event?.business ?? defaultCalendar);
   const startMinutes = event && !event.allDay ? minutesOfDay(event.end) - minutesOfDay(event.start) : 60;
   const [subject, setSubject] = useState(event?.subject ?? '');
   const [day, setDay] = useState(date);
@@ -802,6 +883,18 @@ function EventForm({
       }
     >
       <div className="form-grid">
+        {!editing && calendars.length > 1 && (
+          <div className="field span-2">
+            <span>Calendar</span>
+            <div className="seg small" role="group" aria-label="Calendar">
+              {calendars.map((b) => (
+                <button key={b} type="button" aria-pressed={business === b} className={business === b ? 'on' : ''} onClick={() => setBusiness(b)}>
+                  <span className={`cal-dot ${CAL_CLASS[b]}`} aria-hidden="true" /> {b}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <label className="field span-2">
           <span>Title</span>
           <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="e.g. Lunch with Eric, Council meeting" maxLength={200} autoFocus />

@@ -86,6 +86,10 @@ export interface OutlookEvent {
   recurring?: boolean;
   categories?: string[];
   preview?: string;
+  /** Which of the user's calendars it's in (the Calendar page shows Real Estate and Staging together). */
+  business?: Business;
+  /** The same meeting is also in these other calendars of the user's. */
+  alsoIn?: Business[];
 }
 
 export interface BusyBlock {
@@ -111,6 +115,32 @@ export interface NewEventInput {
   teams: boolean;
   showAs: 'busy' | 'free';
 }
+/**
+ * Events from several of the user's mailboxes at once, each tagged with its calendar. A meeting that's in
+ * more than one (both addresses invited) shows once, noting the other calendar. Mailboxes that fail are
+ * reported in `problems` while the others still show.
+ */
+export async function fetchCombinedEvents(businesses: Business[], start: string, end: string) {
+  const results = await Promise.allSettled(businesses.map((b) => fetchEvents(b, start, end).then((r) => r.events.map((e) => ({ ...e, business: b })))));
+  const events: OutlookEvent[] = [];
+  const seen = new Map<string, OutlookEvent>();
+  const problems: string[] = [];
+  results.forEach((r, i) => {
+    if (r.status === 'rejected') return problems.push(`${businesses[i]} calendar: ${(r.reason as Error).message}`);
+    for (const e of r.value) {
+      const key = `${e.subject}|${e.start}|${e.end}|${e.organizer?.email ?? ''}`;
+      const first = seen.get(key);
+      if (first) first.alsoIn = [...(first.alsoIn ?? []), e.business];
+      else {
+        seen.set(key, e);
+        events.push(e);
+      }
+    }
+  });
+  events.sort((a, b) => a.start.localeCompare(b.start));
+  return { events, problems };
+}
+
 // Changes to events in the mailbox of `business` (the one the event was read from).
 export const createEvent = (business: Business, input: NewEventInput) =>
   callFunction<{ id: string }>('calendar-event', { action: 'create', business, ...input });

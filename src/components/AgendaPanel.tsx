@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { addMinutes, fetchEvents, formatWallDay, formatWallTime, wallFromDate, type OutlookEvent } from '../lib/calendar';
+import { addMinutes, fetchCombinedEvents, formatWallDay, formatWallTime, wallFromDate, type OutlookEvent } from '../lib/calendar';
 import { displayName } from '../lib/filters';
-import { connectionFor, useOutlookConnections } from '../lib/outlook';
+import { connectionFor, useOutlookConnections, workingConnections } from '../lib/outlook';
 import { useSession } from '../lib/session';
 import { useContacts } from '../lib/store';
 import { supabase } from '../lib/supabase';
-import type { Contact } from '../types';
+import type { Business, Contact } from '../types';
 
 /**
- * Your Outlook meetings for today and the next few days, from the mailbox of the business picked in the sidebar. Each one is linked to its Hub contact:
+ * Your Outlook meetings for today and the next few days, from every mailbox you've connected (Real Estate and
+ * Staging together, each marked when there are two). Each one is linked to its Hub contact:
  * meetings scheduled from Hub by the meeting itself, others by matching attendee email addresses.
  * Clicking a linked meeting opens that contact's Meetings panel, where it can be cancelled.
  */
@@ -19,26 +20,24 @@ export function AgendaPanel({ days = 4, refreshKey = 0 }: { days?: number; refre
   const { connections } = useOutlookConnections();
   const navigate = useNavigate();
   const conn = connectionFor(connections, profile.id, business);
+  const mine = useMemo(() => workingConnections(connections, profile.id), [connections, profile.id]);
+  const mineKey = mine.map((c) => c.business).join('|');
+  const overlay = mine.length > 1;
   const [events, setEvents] = useState<OutlookEvent[] | null>(null);
   // Outlook event id → contact id, for meetings booked through Hub.
   const [hubEvents, setHubEvents] = useState<Map<string, string>>(new Map());
   const [error, setError] = useState('');
 
-  // A different business is a different mailbox: don't show the old one's events meanwhile.
   useEffect(() => {
-    setEvents(null);
-    setError('');
-  }, [business]);
-
-  useEffect(() => {
-    if (!conn || conn.lastError) return;
+    if (!mineKey) return;
     const today = wallFromDate(new Date()).slice(0, 10);
     let cancelled = false;
-    fetchEvents(business, `${today}T00:00`, addMinutes(`${today}T00:00`, days * 24 * 60))
-      .then(async (r) => {
+    fetchCombinedEvents(mineKey.split('|') as Business[], `${today}T00:00`, addMinutes(`${today}T00:00`, days * 24 * 60))
+      .then(async ({ events: all, problems }) => {
         if (cancelled) return;
-        setEvents(r.events);
-        const ids = r.events.map((e) => e.id);
+        setError(problems.join(' · '));
+        setEvents(all);
+        const ids = all.map((e) => e.id);
         if (!ids.length) return;
         const { data } = await supabase.from('meetings').select('outlook_event_id, contact_id').in('outlook_event_id', ids).eq('status', 'scheduled');
         if (!cancelled) setHubEvents(new Map((data ?? []).map((m) => [m.outlook_event_id as string, m.contact_id as string])));
@@ -47,7 +46,7 @@ export function AgendaPanel({ days = 4, refreshKey = 0 }: { days?: number; refre
     return () => {
       cancelled = true;
     };
-  }, [conn, business, days, refreshKey]);
+  }, [mineKey, days, refreshKey]);
 
   // Teammates are on lots of invites; their addresses (and connected mailboxes) are never matched to contact records.
   const byEmail = useMemo(() => {
@@ -84,22 +83,27 @@ export function AgendaPanel({ days = 4, refreshKey = 0 }: { days?: number; refre
     <section className="panel">
       <div className="panel-head">
         <h2>Upcoming meetings</h2>
-        {conn && !conn.lastError && <span className="muted small">Next {days} days · {conn.mailbox}</span>}
+        {mine.length > 0 && (
+          <span className="muted small">
+            Next {days} days · {overlay ? 'Real Estate and Staging' : mine[0].mailbox}
+          </span>
+        )}
       </div>
+      {events && error && <p className="notice warn small">Couldn't load your {error}</p>}
       {connections === null ? (
         <p className="muted">Loading…</p>
-      ) : !conn ? (
-        <p className="muted">
-          <Link to="/settings#outlook">Connect your {business} mailbox</Link> to see its meetings here and schedule from Hub.
-        </p>
-      ) : conn.lastError ? (
-        <p className="notice warn">
-          Your {business} mailbox needs reconnecting. <Link to="/settings#outlook">Go to Settings →</Link>
-        </p>
-      ) : error ? (
-        <p className="field-error">Couldn't load your calendar: {error}</p>
+      ) : !mine.length ? (
+        conn?.lastError ? (
+          <p className="notice warn">
+            Your {business} mailbox needs reconnecting. <Link to="/settings#outlook">Go to Settings →</Link>
+          </p>
+        ) : (
+          <p className="muted">
+            <Link to="/settings#outlook">Connect your {business} mailbox</Link> to see its meetings here and schedule from Hub.
+          </p>
+        )
       ) : !events ? (
-        <p className="muted">Loading your calendar…</p>
+        error ? <p className="field-error">Couldn't load your calendar: {error}</p> : <p className="muted">Loading your calendar…</p>
       ) : upcoming.length === 0 ? (
         <div className="empty compact">
           <strong>No meetings in the next {days} days.</strong>
@@ -120,7 +124,10 @@ export function AgendaPanel({ days = 4, refreshKey = 0 }: { days?: number; refre
                     // The whole row opens the contact; inner links keep their own targets.
                     onClick={(ev) => primary && !(ev.target as HTMLElement).closest('a') && navigate(contactUrl(primary))}
                   >
-                    <span className="a-time">{e.allDay ? 'All day' : formatWallTime(e.start)}</span>
+                    <span className="a-time">
+                      {overlay && e.business && <span className={`cal-dot ${e.business === 'Staging' ? 'cal-st' : 'cal-re'}`} title={`${e.business} calendar`} />}
+                      {e.allDay ? 'All day' : formatWallTime(e.start)}
+                    </span>
                     <div>
                       {primary ? (
                         <Link className="a-title" to={contactUrl(primary)}>

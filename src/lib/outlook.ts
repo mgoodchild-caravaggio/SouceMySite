@@ -52,6 +52,10 @@ export function useOutlookConnections() {
 export const connectionFor = (connections: OutlookConnection[] | null, userId: string, business: Business) =>
   connections?.find((c) => c.userId === userId && c.business === business);
 
+/** A person's working mailboxes (connected, no error), Real Estate first. */
+export const workingConnections = (connections: OutlookConnection[] | null, userId: string) =>
+  (['Real Estate', 'Staging'] as Business[]).map((b) => connectionFor(connections, userId, b)).filter((c): c is OutlookConnection => !!c && !c.lastError);
+
 /** Sends the browser to Microsoft to connect one business's mailbox, returning to Settings afterwards. */
 export async function connectOutlook(business: Business) {
   const back = `${window.location.origin}/settings?mailbox=${encodeURIComponent(business)}#outlook`;
