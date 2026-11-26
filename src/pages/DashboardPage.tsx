@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { MapContainer, Marker, TileLayer, Tooltip, useMap } from 'react-leaflet';
 import { Link, useNavigate } from 'react-router-dom';
 import { AgendaPanel } from '../components/AgendaPanel';
+import { DaySummary } from '../components/DaySummary';
 import { slug } from '../components/ProspectCard';
 import { ScheduleDialog } from '../components/ScheduleDialog';
 import { KIND_LABEL, logActivity, useRecentActivity } from '../lib/activities';
@@ -214,6 +215,7 @@ export default function DashboardPage() {
         </div>
         <div className="dash-col">
         <AgendaPanel refreshKey={agendaKey} />
+        <DaySummary key={feed.items?.[0]?.id ?? ''} />
         <section className="panel dash-pipeline">
           <div className="panel-head">
             <h2>Pipeline</h2>

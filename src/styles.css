@@ -442,6 +442,7 @@ h2, h3, h4 { margin: 0; }
 .timeline li.tl-call::before, .timeline li.tl-meeting::before { background: var(--accent); }
 .timeline li.tl-status_change::before { background: var(--route); }
 .timeline li.tl-follow_up_done::before { background: var(--success); }
+.timeline li.tl-file_added::before { background: var(--accent); }
 .timeline li.muted { border-left: 0; padding-left: 0; }
 .timeline li.muted::before { display: none; }
 .tl-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px; }
@@ -1137,3 +1138,38 @@ select { max-width: 100%; }
 @media (max-width: 420px) { .when-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .when-row > :first-child { grid-column: 1 / -1; } }
 button.chip-toggle { cursor: pointer; }
 .cal-month { grid-template-rows: auto; }
+
+/* ---- Files on a contact ---- */
+.files-panel { position: relative; }
+.files-panel.dragging { outline: 2px dashed var(--accent); outline-offset: -2px; }
+.drop-hint { position: absolute; inset: 0; display: grid; place-items: center; background: color-mix(in srgb, var(--surface) 88%, transparent); border-radius: inherit; font-weight: 600; color: var(--accent); pointer-events: none; }
+.file-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.file-list li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: 'badge name actions' 'badge meta actions'; column-gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+.file-list li:first-child { border-top: 0; }
+.file-badge { grid-area: badge; width: 38px; height: 38px; border-radius: 8px; display: grid; place-items: center; font-size: 10px; font-weight: 700; letter-spacing: 0.04em; background: var(--bg); color: var(--muted); border: 1px solid var(--line); }
+.file-badge.fb-pdf { color: var(--danger); }
+.file-badge.fb-img { color: var(--accent); }
+.file-badge.fb-doc { color: var(--route); }
+.file-badge.fb-xls, .file-badge.fb-csv { color: var(--success); }
+.file-name { grid-area: name; background: none; border: 0; padding: 0; font: inherit; font-weight: 600; color: var(--text); text-align: left; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-name:hover { color: var(--accent); text-decoration: underline; }
+.file-meta { grid-area: meta; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-actions { grid-area: actions; display: flex; gap: 10px; }
+.danger-text { color: var(--danger); }
+@media (max-width: 640px) {
+  .file-list li { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: 'badge name' 'badge meta' 'badge actions'; }
+}
+
+/* ---- Dashboard: your day ---- */
+.day-nav { display: flex; align-items: center; gap: 4px; }
+.day-tally { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.day-tally li { background: var(--accent-soft); border: 1px solid var(--accent-line); color: var(--text); border-radius: 999px; padding: 3px 10px; font-size: 13px; }
+.day-tally strong { color: var(--accent); }
+.day-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow-y: auto; }
+.day-list li { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 8px; line-height: 1.4; }
+.day-time { padding-top: 1px; white-space: nowrap; }
+.day-what { min-width: 0; overflow-wrap: anywhere; }
+.day-what a { color: var(--accent); font-weight: 600; text-decoration: none; }
+.day-what a:hover { text-decoration: underline; }
+.day-body { overflow-wrap: anywhere; }
+.small-tag { font-size: 11px; margin-left: 6px; padding: 0 6px; }

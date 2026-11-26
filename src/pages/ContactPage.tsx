@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ConsentPanel } from '../components/ConsentPanel';
 import { ContactForm } from '../components/ContactForm';
 import { EmailComposer } from '../components/EmailComposer';
+import { FilesPanel } from '../components/FilesPanel';
 import { MeetingsPanel } from '../components/MeetingsPanel';
 import { OpportunitiesPanel } from '../components/OpportunitiesPanel';
 import { MatchesPanel } from '../components/MatchesPanel';
@@ -334,6 +335,15 @@ export default function ContactPage() {
             disabled={isArchived}
             onChanged={async (followUpDay) => {
               if (followUpDay) await store.update(contact.id, { followUpOn: followUpDay });
+              await reloadActivities();
+              store.touchActivity(contact.id, new Date().toISOString());
+            }}
+          />
+
+          <FilesPanel
+            contact={contact}
+            disabled={isArchived}
+            onChanged={async () => {
               await reloadActivities();
               store.touchActivity(contact.id, new Date().toISOString());
             }}

@@ -4,6 +4,7 @@ import { Confirm } from '../components/Dialog';
 import { companyLabel, displayName, formatDate, initials } from '../lib/filters';
 import { useSession } from '../lib/session';
 import { contactFromRow, useContacts } from '../lib/store';
+import { removeAllFiles } from '../lib/files';
 import { supabase } from '../lib/supabase';
 import type { Contact } from '../types';
 
@@ -46,6 +47,8 @@ export default function ArchivePage() {
   };
 
   const remove = async (c: Contact) => {
+    // The attached files go too (the database rows go with the contact).
+    await removeAllFiles(c.id);
     const { error: e } = await supabase.from('contacts').delete().eq('id', c.id);
     if (e) return setError(`Couldn't delete: ${e.message}`);
     setRows((prev) => prev?.filter((r) => r.contact.id !== c.id) ?? null);
