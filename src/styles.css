@@ -442,7 +442,7 @@ h2, h3, h4 { margin: 0; }
 .timeline li.tl-call::before, .timeline li.tl-meeting::before { background: var(--accent); }
 .timeline li.tl-status_change::before { background: var(--route); }
 .timeline li.tl-follow_up_done::before { background: var(--success); }
-.timeline li.tl-file_added::before { background: var(--accent); }
+.timeline li.tl-file_added::before, .timeline li.tl-property_added::before, .timeline li.tl-opportunity_added::before { background: var(--accent); }
 .timeline li.muted { border-left: 0; padding-left: 0; }
 .timeline li.muted::before { display: none; }
 .tl-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px; }
@@ -1173,3 +1173,31 @@ button.chip-toggle { cursor: pointer; }
 .day-what a:hover { text-decoration: underline; }
 .day-body { overflow-wrap: anywhere; }
 .small-tag { font-size: 11px; margin-left: 6px; padding: 0 6px; }
+
+/* ---- Research (Ask Hub outside research) ---- */
+.research-new .seg { margin-bottom: 8px; }
+.research-new .inline-actions { margin-top: 10px; flex-wrap: wrap; }
+.run-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.run-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: start; padding: 10px 0; border-top: 1px solid var(--line); }
+.run-list li:first-child { border-top: 0; }
+.run-list li.selected .run-main { border-left: 3px solid var(--accent); padding-left: 8px; }
+.run-main { background: none; border: 0; padding: 0; font: inherit; color: var(--text); text-align: left; cursor: pointer; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.run-summary { color: var(--muted); }
+.run-state { white-space: nowrap; }
+.running-tag { display: inline-flex; align-items: center; gap: 6px; background: var(--accent-soft); border-color: var(--accent-line); }
+.spinner.small { width: 10px; height: 10px; border-width: 2px; }
+.warn-tag { background: var(--warn-soft); border-color: var(--warn-line); color: var(--warn-strong); }
+.finding-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.finding { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; min-width: 0; overflow-wrap: anywhere; }
+.finding-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.finding-name { font-size: 15px; }
+.kind-dev { background: var(--camp-bg); border-color: var(--camp-line); color: var(--camp-ink); }
+.kind-app { background: var(--info-soft); border-color: var(--info-line); color: var(--route); }
+.finding-summary { margin: 0; line-height: 1.45; }
+.finding-contact { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.finding-contact a, .finding-note a, .finding-source { color: var(--accent); }
+.finding-note { margin: 0; }
+.finding-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 2px; }
+.finding-source { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.finding-actions { display: flex; gap: 8px; align-items: center; margin-left: auto; }
+.research-new .field select { width: 100%; }

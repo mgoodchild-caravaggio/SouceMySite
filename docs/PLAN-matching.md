@@ -135,7 +135,11 @@ Matching runs in the browser for lists and maps, since all contacts are already 
    - the tools run in the browser over the data Hub already has, with the user's own permissions; the `ask-hub` function holds the key, checks the monthly cap, calls Claude and logs tokens and cost in `ai_requests`;
    - it can only *propose* adding people to a campaign (as Suggested); the user clicks to accept;
    - Settings → Ask Hub (admins): add, replace or remove the key (checked with Anthropic, stored encrypted, never shown again), switch on/off, monthly cap (default $50), usage meter and recent questions.
-5. **Ask Hub, outside research:** web search for builders/developers and municipal development applications, review and import as leads.
+5. ✅ **Ask Hub, outside research** (built 2026-11-26):
+   - a **Research** page: pick *Builders & developers* or *Development applications*, one of the four areas (or another town) and an optional focus;
+   - the `ai-research` function runs it in short steps (a few web searches each, at most 14 per run), starting from each area's official municipal sites and skipping builders already in Hub; it counts toward Ask Hub's monthly cap;
+   - findings are **leads to review** with their source link; Hub flags ones that look like an existing contact, places applications on the map and lists Hub contacts with land within 1 km;
+   - **Add as prospect** opens the new-contact form filled in (lead source "AI research: <site>", **no email consent**) and, for an application, pins its land; **Dismiss** hides it.
 
 Steps 1–3 deliver the core buyer/seller matching without any AI cost. Steps 4–5 add the assistant on top, using the same matching tools.
 

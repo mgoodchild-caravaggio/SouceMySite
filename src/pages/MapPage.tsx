@@ -91,6 +91,17 @@ export default function MapPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matchState?.opportunity.id, matchState?.point?.lat, matchState?.point?.lng]);
 
+  // /map?near=lat,lng&r=1&label=… (e.g. from a research lead): search around that point.
+  useEffect(() => {
+    const near = params.get('near')?.split(',').map(Number);
+    if (!near || near.length !== 2 || near.some((n) => !Number.isFinite(n))) return;
+    setMode('near');
+    setCenter({ lat: near[0], lng: near[1], label: params.get('label') || 'this spot' });
+    const r = Number(params.get('r'));
+    if (r > 0) setRadiusKm(r);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.get('near')]);
+
   const [addingMatch, setAddingMatch] = useState(false);
   const exitMatch = () => {
     const next = new URLSearchParams(params);

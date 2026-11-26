@@ -21,8 +21,11 @@ const TALLY: { kinds: ActivityKind[]; one: string; many: string }[] = [
   { kinds: ['note'], one: 'note', many: 'notes' },
   { kinds: ['status_change'], one: 'status change', many: 'status changes' },
   { kinds: ['created'], one: 'contact added', many: 'contacts added' },
+  { kinds: ['property_added'], one: 'property added', many: 'properties added' },
+  { kinds: ['opportunity_added'], one: 'listing/requirement added', many: 'listings/requirements added' },
   { kinds: ['file_added'], one: 'file attached', many: 'files attached' },
-  { kinds: ['match_added', 'campaign_stage'], one: 'matching update', many: 'matching updates' },
+  { kinds: ['match_added'], one: 'match added', many: 'matches added' },
+  { kinds: ['campaign_stage'], one: 'campaign update', many: 'campaign updates' },
   { kinds: ['campaign_sent'], one: 'campaign email', many: 'campaign emails' },
   { kinds: ['archived', 'restored', 'file_removed'], one: 'other change', many: 'other changes' },
 ];
@@ -40,6 +43,8 @@ const VERB: Partial<Record<ActivityKind, string>> = {
   file_added: 'Attached',
   file_removed: 'Removed file',
   match_added: 'Match',
+  property_added: 'Property',
+  opportunity_added: 'Listing/requirement',
   campaign_stage: 'Campaign',
 };
 

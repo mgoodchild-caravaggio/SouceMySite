@@ -11,6 +11,7 @@ import MapPage from './pages/MapPage';
 import DashboardPage from './pages/DashboardPage';
 import SettingsPage from './pages/SettingsPage';
 import CampaignsPage from './pages/CampaignsPage';
+import ResearchPage from './pages/ResearchPage';
 import OpportunitiesPage from './pages/OpportunitiesPage';
 import CalendarPage from './pages/CalendarPage';
 import CampaignPage from './pages/CampaignPage';
@@ -46,6 +47,7 @@ export default function App({ session }: { session: Session }) {
               <Route path="opportunities" element={<OpportunitiesPage />} />
               <Route path="calendar" element={<CalendarPage />} />
               <Route path="campaigns" element={<CampaignsPage />} />
+              <Route path="research" element={<ResearchPage />} />
               <Route path="campaigns/:id" element={<CampaignPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
@@ -70,6 +72,7 @@ const NAV = [
   { to: '/opportunities', label: 'Opportunities', short: 'Opps', icon: 'M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8ZM7.5 9a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z' },
   { to: '/contacts', label: 'Contacts', icon: 'M16 11a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm-8 1a3 3 0 1 0-3-3 3 3 0 0 0 3 3Zm8 1c-2.7 0-8 1.3-8 4v3h16v-3c0-2.7-5.3-4-8-4Zm-8 .1C5.6 13.3 1 14.5 1 17v3h5v-3c0-1.5.8-2.8 2-3.9Z' },
   { to: '/campaigns', label: 'Campaigns', icon: 'M2 5.5A1.5 1.5 0 0 1 3.5 4h17A1.5 1.5 0 0 1 22 5.5v13a1.5 1.5 0 0 1-1.5 1.5h-17A1.5 1.5 0 0 1 2 18.5v-13Zm2.2.5L12 11.2 19.8 6H4.2ZM20 7.9l-8 5.3-8-5.3V18h16V7.9Z' },
+  { to: '/research', label: 'Research', desktopOnly: true, icon: 'M10 2a8 8 0 0 1 6.3 12.9l5.4 5.4-1.4 1.4-5.4-5.4A8 8 0 1 1 10 2Zm0 2a6 6 0 1 0 0 12 6 6 0 0 0 0-12Zm-1 2h2v3h3v2h-3v3H9v-3H6V9h3V6Z' },
   { to: '/archive', label: 'Archive', desktopOnly: true, icon: 'M20 6H4V4h16v2Zm-1 2H5v12h14V8Zm-9 3h4v2h-4v-2Z' },
 ];
 
