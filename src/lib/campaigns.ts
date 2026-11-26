@@ -301,29 +301,47 @@ export interface OrgSettings {
   brokerageName: string;
   mailingAddress: string;
   contactLine: string;
+  /** The domain campaigns are sent from (verified with Resend). */
+  sendingDomain: string;
 }
 
-export function useOrgSettings() {
+/** One business's company details for the email footer, and its sending domain. */
+export function useOrgSettings(business: Business) {
   const [org, setOrg] = useState<OrgSettings | null>(null);
   const load = useCallback(async () => {
-    const { data } = await supabase.from('org_settings').select('brokerage_name, mailing_address, contact_line').single();
-    setOrg({ brokerageName: data?.brokerage_name ?? '', mailingAddress: data?.mailing_address ?? '', contactLine: data?.contact_line ?? '' });
-  }, []);
+    const { data } = await supabase
+      .from('org_settings')
+      .select('brokerage_name, mailing_address, contact_line, sending_domain')
+      .eq('business', business)
+      .maybeSingle();
+    setOrg({
+      brokerageName: data?.brokerage_name ?? '',
+      mailingAddress: data?.mailing_address ?? '',
+      contactLine: data?.contact_line ?? '',
+      sendingDomain: data?.sending_domain ?? '',
+    });
+  }, [business]);
   useEffect(() => {
     load();
   }, [load]);
   const save = async (o: OrgSettings) => {
     const { error } = await supabase
       .from('org_settings')
-      .update({ brokerage_name: o.brokerageName.trim(), mailing_address: o.mailingAddress.trim(), contact_line: o.contactLine.trim() })
-      .eq('id', true);
+      .update({
+        brokerage_name: o.brokerageName.trim(),
+        mailing_address: o.mailingAddress.trim(),
+        contact_line: o.contactLine.trim(),
+        sending_domain: o.sendingDomain.trim().toLowerCase().replace(/^@/, ''),
+      })
+      .eq('business', business);
     if (!error) setOrg(o);
     return error?.message ?? '';
   };
   return { org, save, reload: load };
 }
 
-export const footerReady = (o: OrgSettings | null) => !!o && !!o.brokerageName.trim() && !!o.mailingAddress.trim() && !!o.contactLine.trim();
+export const footerReady = (o: OrgSettings | null) =>
+  !!o && !!o.brokerageName.trim() && !!o.mailingAddress.trim() && !!o.contactLine.trim() && !!o.sendingDomain.trim();
 
 /** The email as a recipient will see it, for the preview. */
 export function previewEmail(c: Pick<Campaign, 'subject' | 'body'>, values: Record<string, string>, signature: string) {

@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { TemplateManager } from '../components/TemplateManager';
 import { footerReady, useOrgSettings } from '../lib/campaigns';
 import { formatDate } from '../lib/filters';
-import { callFunction, connectOutlook, useOutlookConnections } from '../lib/outlook';
+import { callFunction, connectionFor, connectOutlook, useOutlookConnections, type OutlookConnection } from '../lib/outlook';
 import { aiAdmin, useAiStatus } from '../lib/askHub';
-import { useSession } from '../lib/session';
+import { signatureFor, useSession } from '../lib/session';
+import { BUSINESSES, type Business } from '../types';
 import { supabase } from '../lib/supabase';
 
 interface CheckResult {
@@ -14,34 +15,29 @@ interface CheckResult {
   nextMeeting: { subject: string; start: string } | null;
 }
 
-/** Your profile, your Outlook connection, and (for everyone) who's on the team. */
+/** Your profile, your Outlook mailboxes and signatures (one per business), and (for everyone) who's on the team. */
 export default function SettingsPage() {
-  const { profile, people, rename, saveSignature } = useSession();
+  const { profile, people, rename } = useSession();
   const { hash } = useLocation();
-  const [signature, setSignature] = useState(profile.signature);
-  const [sigMsg, setSigMsg] = useState('');
   const { connections, reload } = useOutlookConnections();
   const [params, setParams] = useSearchParams();
   const [name, setName] = useState(profile.displayName);
   const [nameMsg, setNameMsg] = useState('');
-  const [busy, setBusy] = useState<'' | 'connect' | 'check' | 'disconnect'>('');
-  const [check, setCheck] = useState<CheckResult | null>(null);
-  const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
+  // Result of the Microsoft round trip (?outlook=connected or ?outlook=error:…, and which mailbox).
+  const [returned, setReturned] = useState<{ business: Business; kind: 'ok' | 'error'; text: string } | null>(null);
 
-  const mine = connections?.find((c) => c.userId === profile.id);
-  const byUser = useMemo(() => Object.fromEntries((connections ?? []).map((c) => [c.userId, c])), [connections]);
-
-  // Result of the Microsoft round trip (?outlook=connected or ?outlook=error:…).
   useEffect(() => {
     const result = params.get('outlook');
     if (!result) return;
-    setMessage(
+    const business = (BUSINESSES as readonly string[]).includes(params.get('mailbox') ?? '') ? (params.get('mailbox') as Business) : 'Real Estate';
+    setReturned(
       result === 'connected'
-        ? { kind: 'ok', text: 'Outlook is connected.' }
-        : { kind: 'error', text: `Outlook wasn't connected: ${result.replace(/^error:/, '')}` },
+        ? { business, kind: 'ok', text: `Your ${business} mailbox is connected.` }
+        : { business, kind: 'error', text: `Your ${business} mailbox wasn't connected: ${result.replace(/^error:/, '')}` },
     );
     const next = new URLSearchParams(params);
     next.delete('outlook');
+    next.delete('mailbox');
     setParams(next, { replace: true });
     reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -52,38 +48,10 @@ export default function SettingsPage() {
     if (hash) document.getElementById(hash.slice(1))?.scrollIntoView({ block: 'start' });
   }, [hash]);
 
-  async function saveSig(e: FormEvent) {
-    e.preventDefault();
-    const err = await saveSignature(signature.trim());
-    setSigMsg(err ? `Couldn't save: ${err}` : 'Saved.');
-  }
-
   async function saveName(e: FormEvent) {
     e.preventDefault();
     const err = await rename(name.trim());
     setNameMsg(err ? `Couldn't save: ${err}` : 'Saved.');
-  }
-
-  async function run(kind: 'connect' | 'check' | 'disconnect') {
-    setBusy(kind);
-    setMessage(null);
-    setCheck(null);
-    try {
-      if (kind === 'connect') {
-        await connectOutlook(); // leaves the page
-        return;
-      }
-      if (kind === 'check') setCheck(await callFunction<CheckResult>('outlook-check'));
-      if (kind === 'disconnect') {
-        await callFunction('outlook-disconnect');
-        setMessage({ kind: 'ok', text: 'Outlook is disconnected from Hub.' });
-      }
-      await reload();
-    } catch (e) {
-      setMessage({ kind: 'error', text: (e as Error).message });
-      await reload();
-    }
-    setBusy('');
   }
 
   return (
@@ -118,83 +86,49 @@ export default function SettingsPage() {
         </form>
       </section>
 
-      <section className="panel" id="signature">
-        <h2>Email signature</h2>
-        <form className="signature-field" onSubmit={saveSig}>
-          <label className="field">
-            <span>Added to the end of emails you send from Hub (Outlook doesn't add its own signature to these)</span>
-            <textarea
-              rows={5}
-              value={signature}
-              placeholder={`${profile.displayName}\nCaravaggio Real Estate\n905 555 0100`}
-              onChange={(e) => {
-                setSignature(e.target.value);
-                setSigMsg('');
-              }}
-            />
-          </label>
-          <div className="inline-actions">
-            <button type="submit" className="btn small primary" disabled={signature.trim() === profile.signature}>
-              Save signature
-            </button>
-            {sigMsg && <span className="muted small" role="status">{sigMsg}</span>}
-          </div>
-        </form>
-      </section>
-
       <section className="panel" id="outlook">
         <h2>Outlook</h2>
         <p className="muted">
-          Connect your Microsoft 365 account so Hub can show your calendar, schedule meetings with contacts, and send emails from your
-          own mailbox. Hub keeps the connection encrypted and you can disconnect at any time.
+          Connect your Microsoft 365 mailboxes so Hub can show your calendar, schedule meetings with contacts, and send emails from your own
+          mailbox. Real Estate and Staging each use their own mailbox: the business switch in the sidebar decides which calendar you see, and
+          emails and meetings with a contact go from the mailbox of that contact's business. Hub keeps the connections encrypted and you can
+          disconnect at any time.
         </p>
-        {message && (
-          <p className={`notice ${message.kind === 'error' ? 'warn' : 'ok'}`} role={message.kind === 'error' ? 'alert' : 'status'}>
-            {message.text}
-          </p>
-        )}
         {connections === null ? (
           <p className="muted">Checking…</p>
-        ) : mine ? (
-          <>
-            <div className="connection-row">
-              <span className={`conn-dot ${mine.lastError ? 'bad' : 'good'}`} aria-hidden="true" />
-              <div>
-                <strong>{mine.lastError ? 'Needs reconnecting' : 'Connected'}</strong> as {mine.mailbox}
-                <div className="muted small">Since {formatDate(mine.connectedAt)}</div>
-                {mine.lastError && <div className="field-error">{mine.lastError}</div>}
-              </div>
-            </div>
-            {check && (
-              <p className="notice ok" role="status">
-                Working: signed in to Outlook as {check.name} ({check.mailbox}).{' '}
-                {check.nextMeeting
-                  ? `Your next meeting is “${check.nextMeeting.subject}” on ${formatDate(check.nextMeeting.start)}.`
-                  : 'No meetings in the next 7 days.'}
-              </p>
-            )}
-            <div className="inline-actions">
-              <button type="button" className="btn small" onClick={() => run('check')} disabled={!!busy}>
-                {busy === 'check' ? 'Checking…' : 'Test connection'}
-              </button>
-              <button type="button" className="btn small" onClick={() => run('connect')} disabled={!!busy}>
-                Reconnect
-              </button>
-              <button type="button" className="btn small danger-outline" onClick={() => run('disconnect')} disabled={!!busy}>
-                Disconnect
-              </button>
-            </div>
-          </>
         ) : (
-          <div className="inline-actions">
-            <button type="button" className="btn primary" onClick={() => run('connect')} disabled={!!busy}>
-              {busy === 'connect' ? 'Opening Microsoft…' : 'Connect Outlook'}
-            </button>
+          <div className="mailbox-list">
+            {BUSINESSES.map((b) => (
+              <MailboxCard
+                key={b}
+                business={b}
+                conn={connectionFor(connections, profile.id, b)}
+                returned={returned?.business === b ? returned : null}
+                reload={reload}
+              />
+            ))}
           </div>
         )}
       </section>
 
-      <BrokerageDetails isAdmin={profile.role === 'admin'} />
+      <section className="panel" id="signature">
+        <h2>Email signatures</h2>
+        <p className="muted small">Added to the end of emails you send from Hub (Outlook doesn't add its own signature to these).</p>
+        {BUSINESSES.map((b) => (
+          <SignatureForm key={b} business={b} />
+        ))}
+      </section>
+
+      <section className="panel" id="brokerage">
+        <h2>Company details for marketing email</h2>
+        <p className="muted small">
+          Canada's anti-spam law requires the sender's name, mailing address and a way to reach them at the bottom of every campaign email,
+          next to the unsubscribe link. Each business sends from its own domain.
+        </p>
+        {BUSINESSES.map((b) => (
+          <BrokerageDetails key={b} business={b} isAdmin={profile.role === 'admin'} />
+        ))}
+      </section>
 
       <AskHubSettings isAdmin={profile.role === 'admin'} />
 
@@ -203,21 +137,21 @@ export default function SettingsPage() {
       <section className="panel">
         <h2>Team</h2>
         <ul className="team-list">
-          {people.map((p) => {
-            const c = byUser[p.id];
-            return (
-              <li key={p.id}>
-                <div>
-                  <strong>{p.displayName}</strong>
-                  <div className="muted small">{p.email}</div>
-                </div>
-                <span className="tag">{p.role === 'admin' ? 'Admin' : 'Member'}</span>
-                <span className="muted small">
-                  {c ? (c.lastError ? 'Outlook needs reconnecting' : 'Outlook connected') : 'Outlook not connected'}
-                </span>
-              </li>
-            );
-          })}
+          {people.map((p) => (
+            <li key={p.id}>
+              <div>
+                <strong>{p.displayName}</strong>
+                <div className="muted small">{p.email}</div>
+              </div>
+              <span className="tag">{p.role === 'admin' ? 'Admin' : 'Member'}</span>
+              <span className="muted small">
+                {BUSINESSES.map((b) => {
+                  const c = connectionFor(connections, p.id, b);
+                  return `${b}: ${c ? (c.lastError ? 'needs reconnecting' : 'connected') : 'not connected'}`;
+                }).join(' · ')}
+              </span>
+            </li>
+          ))}
         </ul>
         {profile.role === 'admin' && (
           <p className="muted small">To invite someone or change a role, use the Supabase dashboard (Authentication → Users, and the profiles table).</p>
@@ -227,9 +161,141 @@ export default function SettingsPage() {
   );
 }
 
-/** The brokerage details every marketing email must show (CASL). Admins edit; everyone can see them. */
-function BrokerageDetails({ isAdmin }: { isAdmin: boolean }) {
-  const { org, save } = useOrgSettings();
+/** One business's mailbox: connect, test, reconnect or disconnect it. */
+function MailboxCard({
+  business,
+  conn,
+  returned,
+  reload,
+}: {
+  business: Business;
+  conn: OutlookConnection | undefined;
+  returned: { kind: 'ok' | 'error'; text: string } | null;
+  reload: () => Promise<void>;
+}) {
+  const [busy, setBusy] = useState<'' | 'connect' | 'check' | 'disconnect'>('');
+  const [check, setCheck] = useState<CheckResult | null>(null);
+  const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(returned);
+  useEffect(() => setMessage(returned), [returned]);
+
+  async function run(kind: 'connect' | 'check' | 'disconnect') {
+    setBusy(kind);
+    setMessage(null);
+    setCheck(null);
+    try {
+      if (kind === 'connect') {
+        await connectOutlook(business); // leaves the page
+        return;
+      }
+      if (kind === 'check') setCheck(await callFunction<CheckResult>('outlook-check', { business }));
+      if (kind === 'disconnect') {
+        await callFunction('outlook-disconnect', { business });
+        setMessage({ kind: 'ok', text: `Your ${business} mailbox is disconnected from Hub.` });
+      }
+      await reload();
+    } catch (e) {
+      setMessage({ kind: 'error', text: (e as Error).message });
+      await reload();
+    }
+    setBusy('');
+  }
+
+  return (
+    <div className="mailbox-card">
+      <h3>{business} mailbox</h3>
+      {message && (
+        <p className={`notice ${message.kind === 'error' ? 'warn' : 'ok'}`} role={message.kind === 'error' ? 'alert' : 'status'}>
+          {message.text}
+        </p>
+      )}
+      {conn ? (
+        <>
+          <div className="connection-row">
+            <span className={`conn-dot ${conn.lastError ? 'bad' : 'good'}`} aria-hidden="true" />
+            <div>
+              <strong>{conn.lastError ? 'Needs reconnecting' : 'Connected'}</strong> as {conn.mailbox}
+              <div className="muted small">Since {formatDate(conn.connectedAt)}</div>
+              {conn.lastError && <div className="field-error">{conn.lastError}</div>}
+            </div>
+          </div>
+          {check && (
+            <p className="notice ok" role="status">
+              Working: signed in to Outlook as {check.name} ({check.mailbox}).{' '}
+              {check.nextMeeting
+                ? `The next meeting is “${check.nextMeeting.subject}” on ${formatDate(check.nextMeeting.start)}.`
+                : 'No meetings in the next 7 days.'}
+            </p>
+          )}
+          <div className="inline-actions">
+            <button type="button" className="btn small" onClick={() => run('check')} disabled={!!busy}>
+              {busy === 'check' ? 'Checking…' : 'Test connection'}
+            </button>
+            <button type="button" className="btn small" onClick={() => run('connect')} disabled={!!busy}>
+              Reconnect
+            </button>
+            <button type="button" className="btn small danger-outline" onClick={() => run('disconnect')} disabled={!!busy}>
+              Disconnect
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          {business === 'Staging' && (
+            <p className="muted small">
+              Microsoft will ask which account to use: choose your Staging mailbox, or “Use another account” and sign in with it.
+            </p>
+          )}
+          <div className="inline-actions">
+            <button type="button" className="btn primary" onClick={() => run('connect')} disabled={!!busy}>
+              {busy === 'connect' ? 'Opening Microsoft…' : `Connect ${business} mailbox`}
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** The signature for one business's emails. */
+function SignatureForm({ business }: { business: Business }) {
+  const { profile, saveSignature } = useSession();
+  const saved = signatureFor(profile, business);
+  const [signature, setSignature] = useState(saved);
+  const [msg, setMsg] = useState('');
+  return (
+    <form
+      className="signature-field"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        const err = await saveSignature(signature.trim(), business);
+        setMsg(err ? `Couldn't save: ${err}` : 'Saved.');
+      }}
+    >
+      <label className="field">
+        <span>{business} emails</span>
+        <textarea
+          rows={5}
+          value={signature}
+          placeholder={`${profile.displayName}\n${business === 'Staging' ? 'Infrastructure Staging Solutions' : 'Caravaggio Real Estate'}\n905 555 0100`}
+          onChange={(e) => {
+            setSignature(e.target.value);
+            setMsg('');
+          }}
+        />
+      </label>
+      <div className="inline-actions">
+        <button type="submit" className="btn small primary" disabled={signature.trim() === saved}>
+          Save {business} signature
+        </button>
+        {msg && <span className="muted small" role="status">{msg}</span>}
+      </div>
+    </form>
+  );
+}
+
+/** One business's details every marketing email must show (CASL), and its sending domain. Admins edit; everyone can see them. */
+function BrokerageDetails({ business, isAdmin }: { business: Business; isAdmin: boolean }) {
+  const { org, save } = useOrgSettings(business);
   const [draft, setDraft] = useState<typeof org>(null);
   const [msg, setMsg] = useState('');
   const value = draft ?? org;
@@ -238,13 +304,13 @@ function BrokerageDetails({ isAdmin }: { isAdmin: boolean }) {
     setDraft({ ...value, [k]: e.target.value });
     setMsg('');
   };
+  const staging = business === 'Staging';
   return (
-    <section className="panel" id="brokerage">
+    <div className="mailbox-card">
       <div className="panel-head">
-        <h2>Brokerage details for marketing email</h2>
+        <h3>{business}</h3>
         {!footerReady(org) && <span className="consent-badge c-unsubscribed">Needed before sending</span>}
       </div>
-      <p className="muted small">Canada's anti-spam law requires these at the bottom of every campaign email, next to the unsubscribe link.</p>
       <form
         className="form-grid"
         onSubmit={async (e) => {
@@ -255,21 +321,30 @@ function BrokerageDetails({ isAdmin }: { isAdmin: boolean }) {
         }}
       >
         <label className="field">
-          <span>Brokerage legal name</span>
-          <input value={value.brokerageName} disabled={!isAdmin} onChange={set('brokerageName')} placeholder="e.g. Caravaggio Real Estate Inc., Brokerage" />
+          <span>{staging ? 'Company legal name' : 'Brokerage legal name'}</span>
+          <input
+            value={value.brokerageName}
+            disabled={!isAdmin}
+            onChange={set('brokerageName')}
+            placeholder={staging ? 'e.g. Infrastructure Staging Solutions Inc.' : 'e.g. Caravaggio Real Estate Inc., Brokerage'}
+          />
         </label>
         <label className="field">
           <span>Phone, email or website</span>
-          <input value={value.contactLine} disabled={!isAdmin} onChange={set('contactLine')} placeholder="e.g. 905 555 0100 · caravaggiorealestate.ca" />
+          <input value={value.contactLine} disabled={!isAdmin} onChange={set('contactLine')} placeholder="e.g. 905 555 0100 · example.ca" />
         </label>
-        <label className="field span-2">
+        <label className="field">
           <span>Mailing address</span>
           <input value={value.mailingAddress} disabled={!isAdmin} onChange={set('mailingAddress')} placeholder="Street, city, province, postal code" />
+        </label>
+        <label className="field">
+          <span>Sending domain</span>
+          <input value={value.sendingDomain} disabled={!isAdmin} onChange={set('sendingDomain')} placeholder={staging ? 'e.g. the domain of the Staging mailbox' : 'caravaggiorealestate.ca'} />
         </label>
         {isAdmin ? (
           <div className="span-2 inline-actions">
             <button type="submit" className="btn small primary" disabled={!draft}>
-              Save details
+              Save {business} details
             </button>
             {msg && <span className="muted small" role="status">{msg}</span>}
           </div>
@@ -277,7 +352,7 @@ function BrokerageDetails({ isAdmin }: { isAdmin: boolean }) {
           <p className="muted small span-2">Only admins can change these.</p>
         )}
       </form>
-    </section>
+    </div>
   );
 }
 

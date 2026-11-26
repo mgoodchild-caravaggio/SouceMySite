@@ -1,10 +1,11 @@
-// The Calendar page's changes to the signed-in user's own Outlook calendar:
+// The Calendar page's changes to the signed-in user's own Outlook calendar (the mailbox of the business
+// they're working in: Real Estate and Staging have separate mailboxes):
 //   create  - an event with no contact (meetings with a contact go through calendar-schedule)
 //   update  - title, time, all-day, location, notes
 //   cancel  - cancel (organiser, with attendees: they're told) or delete (just me)
 //   respond - accept / tentatively accept / decline an invitation
 // When the event is a Hub meeting with a contact, the meetings table and the contact's timeline stay in step.
-import { graph, graphToken, TIME_ZONE, torontoToUtc, wallTime } from '../_shared/microsoft.ts';
+import { businessOf, graph, graphToken, TIME_ZONE, torontoToUtc, wallTime } from '../_shared/microsoft.ts';
 import { adminClient, HttpError, jsonHandler, requireUser } from '../_shared/supabase.ts';
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
@@ -38,10 +39,11 @@ Deno.serve(
     const user = await requireUser(req);
     const b = await req.json().catch(() => ({}));
     const db = adminClient();
-    const token = await graphToken(user.id);
+    const business = businessOf(b.business);
+    const token = await graphToken(user.id, business);
     // A Hub meeting with a contact, if this event is one of the user's own.
     const hubMeeting = async (id: string) =>
-      (await db.from('meetings').select('id, contact_id, subject, status').eq('outlook_event_id', id).eq('organizer_id', user.id).maybeSingle()).data;
+      (await db.from('meetings').select('id, contact_id, subject, status').eq('outlook_event_id', id).eq('organizer_id', user.id).eq('mailbox_business', business).maybeSingle()).data;
 
     switch (b.action) {
       case 'create': {

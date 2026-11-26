@@ -1,5 +1,6 @@
-// The signed-in user's Outlook events between two Toronto wall times (Dashboard agenda and the Calendar page).
-import { graph, graphToken, tzHeader, wallTime } from '../_shared/microsoft.ts';
+// The signed-in user's Outlook events between two Toronto wall times (Dashboard agenda and the Calendar page),
+// from the mailbox of the business they're working in.
+import { businessOf, graph, graphToken, tzHeader, wallTime } from '../_shared/microsoft.ts';
 import { HttpError, jsonHandler, requireUser } from '../_shared/supabase.ts';
 
 interface GraphPerson {
@@ -37,7 +38,7 @@ Deno.serve(
     // A month view plus a little either side is the most anyone asks for.
     if (Date.parse(end) - Date.parse(start) > 50 * 24 * 3600 * 1000) throw new HttpError(400, 'Ask for at most 50 days at a time');
 
-    const token = await graphToken(user.id);
+    const token = await graphToken(user.id, businessOf(body.business));
     const select = 'subject,start,end,isAllDay,isCancelled,isOrganizer,showAs,type,categories,bodyPreview,responseStatus,location,attendees,organizer,onlineMeeting,webLink';
     const all: GraphEvent[] = [];
     let path: string | null = `/me/calendarView?startDateTime=${start}&endDateTime=${end}&$select=${select}&$orderby=start/dateTime&$top=200`;

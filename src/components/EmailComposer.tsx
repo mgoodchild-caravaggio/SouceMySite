@@ -2,8 +2,8 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Dialog } from './Dialog';
 import { consentState, displayName } from '../lib/filters';
-import { callFunction, useOutlookConnections } from '../lib/outlook';
-import { useSession } from '../lib/session';
+import { callFunction, connectionFor, useOutlookConnections } from '../lib/outlook';
+import { signatureFor, useSession } from '../lib/session';
 import { fillTemplate, MERGE_FIELDS, mergeValues, unknownFields, useTemplates } from '../lib/templates';
 import type { Contact } from '../types';
 
@@ -14,12 +14,15 @@ interface Props {
   onSent: (at: string) => void;
 }
 
-/** Write (or start from a template) and send a one-off email from your own Outlook. */
+/** Write (or start from a template) and send a one-off email from your own Outlook mailbox for the contact's business. */
 export function EmailComposer({ contact, onClose, onSent }: Props) {
   const { profile } = useSession();
   const { connections } = useOutlookConnections();
   const { templates } = useTemplates();
-  const connected = connections?.some((c) => c.userId === profile.id && !c.lastError);
+  // Real Estate and Staging contacts hear from different mailboxes.
+  const conn = connectionFor(connections, profile.id, contact.business);
+  const connected = !!conn && !conn.lastError;
+  const signature = signatureFor(profile, contact.business);
   const values = useMemo(() => mergeValues(contact, profile.displayName), [contact, profile.displayName]);
 
   const [templateId, setTemplateId] = useState('');
@@ -99,14 +102,17 @@ export function EmailComposer({ contact, onClose, onSent }: Props) {
         <p className="muted">Checking your Outlook connection…</p>
       ) : !connected ? (
         <div className="notice warn">
-          Connect your Outlook so emails go from your own mailbox and are logged here. <Link to="/settings" onClick={onClose}>Go to Settings →</Link>{' '}
+          Connect your {contact.business} mailbox so emails go from it and are logged here.{' '}
+          <Link to="/settings#outlook" onClick={onClose}>
+            Go to Settings →
+          </Link>{' '}
           or <a href={mailto}>open your email app</a> (not logged in Hub).
         </div>
       ) : (
         <div className="composer-form">
           <div className="to-line">
             <span className="muted">To</span> <strong>{contact.email}</strong>
-            <span className="muted small"> · from your Outlook ({profile.email})</span>
+            <span className="muted small"> · from your {contact.business} mailbox ({conn?.mailbox})</span>
           </div>
 
           {unsubscribed && (
@@ -143,10 +149,10 @@ export function EmailComposer({ contact, onClose, onSent }: Props) {
             <textarea rows={11} value={body} onChange={(e) => setBody(e.target.value)} />
           </label>
           <div className="signature-preview">
-            {profile.signature ? (
+            {signature ? (
               <>
                 <span className="muted small">Your signature is added below:</span>
-                <pre>{profile.signature}</pre>
+                <pre>{signature}</pre>
               </>
             ) : (
               <span className="muted small">

@@ -1,6 +1,6 @@
-// Sends a one-off email to a contact from the signed-in person's own Outlook mailbox
+// Sends a one-off email to a contact from the signed-in person's own Outlook mailbox for the contact's business
 // (so it appears in their Sent Items and replies come back to them), then logs it on the contact.
-import { graph, graphToken } from '../_shared/microsoft.ts';
+import { businessOf, graph, graphToken } from '../_shared/microsoft.ts';
 import { adminClient, HttpError, jsonHandler, requireUser } from '../_shared/supabase.ts';
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
@@ -20,7 +20,7 @@ Deno.serve(
     if (!body) throw new HttpError(400, 'Write a message');
 
     const db = adminClient();
-    const { data: contact } = await db.from('contacts').select('id, first_name, last_name, email, archived_at').eq('id', String(b.contactId)).maybeSingle();
+    const { data: contact } = await db.from('contacts').select('id, business, first_name, last_name, email, archived_at').eq('id', String(b.contactId)).maybeSingle();
     if (!contact || contact.archived_at) throw new HttpError(404, 'Contact not found');
     if (!contact.email) throw new HttpError(400, 'This contact has no email address');
 
@@ -30,13 +30,14 @@ Deno.serve(
       throw new HttpError(409, `${contact.email} is on the do-not-email list (${suppressed.reason}). Only send if this is a personal message about a specific deal.`);
     }
 
-    const { data: profile } = await db.from('profiles').select('signature').eq('id', user.id).single();
-    const signature = (profile?.signature ?? '').trim();
+    const business = businessOf(contact.business);
+    const { data: profile } = await db.from('profiles').select('signature, signature_staging').eq('id', user.id).single();
+    const signature = ((business === 'Staging' ? profile?.signature_staging : profile?.signature) ?? '').trim();
     const html = `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;line-height:1.5">${toHtml(body)}${
       signature ? `<br><br>${toHtml(signature)}` : ''
     }</div>`;
 
-    const token = await graphToken(user.id);
+    const token = await graphToken(user.id, business);
     await graph(token, '/me/sendMail', {
       method: 'POST',
       body: JSON.stringify({

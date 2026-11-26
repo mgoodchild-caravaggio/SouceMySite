@@ -58,17 +58,28 @@ async function tokenRequest(params: Record<string, string>): Promise<TokenRespon
 export const redeemCode = (code: string) =>
   tokenRequest({ grant_type: 'authorization_code', code, redirect_uri: callbackUrl(), scope: SCOPES });
 
-/** A fresh Graph access token for a Hub user, refreshing (and re-storing) their Outlook token. */
-export async function graphToken(userId: string): Promise<string> {
+/** Real Estate and Staging each have their own Microsoft 365 mailbox. */
+export const BUSINESSES = ['Real Estate', 'Staging'] as const;
+export type Business = (typeof BUSINESSES)[number];
+
+/** The business a request names, defaulting to Real Estate. */
+export function businessOf(value: unknown): Business {
+  if (value === undefined || value === null || value === '') return 'Real Estate';
+  if (!BUSINESSES.includes(value as Business)) throw new HttpError(400, 'Unknown business');
+  return value as Business;
+}
+
+/** A fresh Graph access token for a Hub user's mailbox for one business, refreshing (and re-storing) the token. */
+export async function graphToken(userId: string, business: Business): Promise<string> {
   const db = adminClient();
-  const { data: conn } = await db.from('outlook_connections').select('refresh_token').eq('user_id', userId).maybeSingle();
-  if (!conn) throw new HttpError(409, 'Connect Outlook first (Settings → Outlook).');
+  const { data: conn } = await db.from('outlook_connections').select('refresh_token').eq('user_id', userId).eq('business', business).maybeSingle();
+  if (!conn) throw new HttpError(409, `Connect your ${business} mailbox first (Settings → Outlook).`);
   let refreshToken: string;
   try {
     refreshToken = await decrypt(conn.refresh_token);
   } catch {
     const message = 'The saved Outlook connection could not be read. Please reconnect.';
-    await db.from('outlook_connections').update({ last_error: message }).eq('user_id', userId);
+    await db.from('outlook_connections').update({ last_error: message }).eq('user_id', userId).eq('business', business);
     throw new HttpError(409, message);
   }
   try {
@@ -80,12 +91,13 @@ export async function graphToken(userId: string): Promise<string> {
         last_used_at: new Date().toISOString(),
         last_error: null,
       })
-      .eq('user_id', userId);
+      .eq('user_id', userId)
+      .eq('business', business);
     return t.access_token;
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
-    await db.from('outlook_connections').update({ last_error: message }).eq('user_id', userId);
-    throw new HttpError(409, `Outlook needs reconnecting: ${message}`);
+    await db.from('outlook_connections').update({ last_error: message }).eq('user_id', userId).eq('business', business);
+    throw new HttpError(409, `Your ${business} mailbox needs reconnecting: ${message}`);
   }
 }
 

@@ -600,6 +600,15 @@ a.theme-btn { text-decoration: none; }
 .inline-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .notice.ok { background: var(--accent-soft); border-color: var(--accent-line); color: var(--text); }
 .connection-row { display: flex; gap: 10px; align-items: flex-start; }
+/* Settings: one card per business (mailbox, company details). */
+.mailbox-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 12px; }
+.mailbox-card { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.mailbox-card + .mailbox-card { margin-top: 12px; }
+.mailbox-list .mailbox-card + .mailbox-card { margin-top: 0; }
+.mailbox-card h3 { margin: 0; font-size: 15px; }
+.mailbox-card .connection-row { overflow-wrap: anywhere; }
+.panel .mailbox-card .form-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); }
+.signature-field + .signature-field { margin-top: 14px; }
 .conn-dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 5px; flex: none; }
 .conn-dot.good { background: var(--success); }
 .conn-dot.bad { background: var(--danger); }
@@ -1018,6 +1027,7 @@ select { max-width: 100%; }
 .cal-title { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
 .cal-title h1 { margin: 0; font-size: 22px; letter-spacing: -0.01em; }
 .cal-range { font-weight: 600; color: var(--text); }
+.cal-mailbox { overflow-wrap: anywhere; }
 .cal-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .cal-step { display: flex; }
 .cal-arrow { font-size: 24px; width: 36px; height: 36px; border-radius: 8px; }

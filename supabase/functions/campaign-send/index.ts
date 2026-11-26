@@ -2,7 +2,7 @@
 //   test     — anyone: sends one copy to yourself, filled in with a real contact's details.
 //   send     — admins: checks consent for each chosen contact, queues them, and sends (now or at a set time).
 //   cancel   — admins: stops a scheduled or sending campaign; anyone not yet emailed is skipped.
-import { exclusionReason, footerComplete, fromAddress, mergeValues, processQueued, render, resendSingle, unsubscribePageUrl, type ContactRow } from '../_shared/campaign.ts';
+import { exclusionReason, fromAddress, mergeValues, orgFor, orgProblem, processQueued, render, resendSingle, senderFor, unsubscribePageUrl, type ContactRow } from '../_shared/campaign.ts';
 import { adminClient, HttpError, jsonHandler, requireUser } from '../_shared/supabase.ts';
 
 Deno.serve(
@@ -10,12 +10,12 @@ Deno.serve(
     const user = await requireUser(req);
     const b = await req.json().catch(() => ({}));
     const db = adminClient();
-    const [{ data: campaign }, { data: me }, { data: org }] = await Promise.all([
+    const [{ data: campaign }, { data: me }] = await Promise.all([
       db.from('campaigns').select('*').eq('id', String(b.campaignId)).maybeSingle(),
       db.from('profiles').select('id, role, email, display_name').eq('id', user.id).single(),
-      db.from('org_settings').select('brokerage_name, mailing_address, contact_line').single(),
     ]);
     if (!campaign) throw new HttpError(404, 'Campaign not found');
+    const org = await orgFor(db, campaign.business);
     const isAdmin = me?.role === 'admin';
 
     if (b.action === 'cancel') {
@@ -27,10 +27,12 @@ Deno.serve(
     }
 
     if (b.action === 'send' && !isAdmin) throw new HttpError(403, 'Only admins can send campaigns. Save it and ask an admin to send it.');
-    if (!footerComplete(org)) throw new HttpError(409, 'Add the brokerage name, mailing address and contact line in Settings first. Canadian law requires them in every marketing email.');
+    const problem = orgProblem(org, campaign.business);
+    if (problem) throw new HttpError(409, problem);
     if (!campaign.subject.trim() || !campaign.body.trim()) throw new HttpError(400, 'Add a subject and message first');
-    const { data: sender } = await db.from('profiles').select('display_name, email, signature').eq('id', campaign.sender_id ?? user.id).maybeSingle();
-    if (!sender) throw new HttpError(400, 'Choose who the email comes from');
+    const sender = await senderFor(db, campaign.business, campaign.sender_id ?? user.id).catch((e) => {
+      throw new HttpError(409, e.message);
+    });
 
     const contactIds: string[] = Array.isArray(b.contactIds) ? b.contactIds.map(String).slice(0, 5000) : [];
 
@@ -44,12 +46,12 @@ Deno.serve(
       const msg = render({
         subject: campaign.subject,
         body: campaign.body,
-        signature: sender.signature ?? '',
+        signature: sender.signature,
         org: org!,
-        values: mergeValues(sample, sender.display_name || sender.email),
+        values: mergeValues(sample, sender.name),
         unsubUrl: unsubscribePageUrl('00000000-0000-0000-0000-000000000000'),
       });
-      const { from, replyTo } = fromAddress(sender.display_name || sender.email, sender.email);
+      const { from, replyTo } = fromAddress(sender.name, sender.email, org!.sending_domain);
       await resendSingle({ from, reply_to: replyTo, to: [me!.email], subject: `[Test] ${msg.subject}`, html: msg.html, text: msg.text });
       return { ok: true, to: me!.email };
     }

@@ -9,9 +9,14 @@ export interface Profile {
   displayName: string;
   role: 'admin' | 'member';
   currentBusiness: Business;
-  /** Added to the end of emails sent from Hub. */
+  /** Added to the end of Real Estate emails sent from Hub. */
   signature: string;
+  /** Added to the end of Staging emails (a different company and mailbox). */
+  signatureStaging: string;
 }
+
+/** The signature for emails about one business. */
+export const signatureFor = (p: Profile, b: Business) => (b === 'Staging' ? p.signatureStaging : p.signature);
 
 interface SessionValue {
   session: Session;
@@ -22,8 +27,8 @@ interface SessionValue {
   setBusiness: (b: Business) => void;
   /** Saves the signed-in user's display name. Returns an error message, or '' on success. */
   rename: (name: string) => Promise<string>;
-  /** Saves the signed-in user's email signature. Returns an error message, or '' on success. */
-  saveSignature: (signature: string) => Promise<string>;
+  /** Saves the signed-in user's email signature for one business. Returns an error message, or '' on success. */
+  saveSignature: (signature: string, business: Business) => Promise<string>;
 }
 
 const SessionContext = createContext<SessionValue | null>(null);
@@ -35,6 +40,7 @@ interface ProfileRow {
   role: 'admin' | 'member';
   current_business: Business;
   signature: string;
+  signature_staging: string;
 }
 
 const fromRow = (r: ProfileRow): Profile => ({
@@ -44,6 +50,7 @@ const fromRow = (r: ProfileRow): Profile => ({
   role: r.role,
   currentBusiness: r.current_business,
   signature: r.signature ?? '',
+  signatureStaging: r.signature_staging ?? '',
 });
 
 /** Loads the signed-in user's profile and the team list, and remembers the business switch per user. */
@@ -55,7 +62,7 @@ export function SessionProvider({ session, children }: { session: Session; child
   useEffect(() => {
     supabase
       .from('profiles')
-      .select('id, email, display_name, role, current_business, signature')
+      .select('id, email, display_name, role, current_business, signature, signature_staging')
       .order('display_name')
       .then(({ data, error }) => {
         if (error) return setError(error.message);
@@ -81,10 +88,14 @@ export function SessionProvider({ session, children }: { session: Session; child
     return '';
   };
 
-  const saveSignature = async (signature: string) => {
-    const { error: e } = await supabase.from('profiles').update({ signature }).eq('id', session.user.id);
+  const saveSignature = async (signature: string, b: Business) => {
+    const staging = b === 'Staging';
+    const { error: e } = await supabase
+      .from('profiles')
+      .update(staging ? { signature_staging: signature } : { signature })
+      .eq('id', session.user.id);
     if (e) return e.message;
-    setPeople((prev) => prev?.map((p) => (p.id === session.user.id ? { ...p, signature } : p)) ?? prev);
+    setPeople((prev) => prev?.map((p) => (p.id === session.user.id ? { ...p, ...(staging ? { signatureStaging: signature } : { signature }) } : p)) ?? prev);
     return '';
   };
 
@@ -111,6 +122,7 @@ export function SessionProvider({ session, children }: { session: Session; child
     role: 'member' as const,
     currentBusiness: business,
     signature: '',
+    signatureStaging: '',
   };
 
   return (

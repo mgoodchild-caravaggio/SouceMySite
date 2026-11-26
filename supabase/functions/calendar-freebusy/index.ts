@@ -1,5 +1,5 @@
 // Busy times for the signed-in user and chosen teammates on one day (Outlook free/busy only, no details).
-import { graph, graphToken, tzHeader, TIME_ZONE, wallTime } from '../_shared/microsoft.ts';
+import { businessOf, graph, graphToken, tzHeader, TIME_ZONE, wallTime } from '../_shared/microsoft.ts';
 import { HttpError, jsonHandler, requireUser } from '../_shared/supabase.ts';
 
 Deno.serve(
@@ -10,7 +10,7 @@ Deno.serve(
     const end = wallTime(body.end, 'end');
     const emails: string[] = Array.isArray(body.emails) ? body.emails.filter((e: unknown) => typeof e === 'string').slice(0, 10) : [];
     if (!emails.length) throw new HttpError(400, 'No calendars to check');
-    const token = await graphToken(user.id);
+    const token = await graphToken(user.id, businessOf(body.business));
     const res = await graph<{ value: { scheduleId: string; error?: { message: string }; scheduleItems?: { status: string; start: { dateTime: string }; end: { dateTime: string } }[] }[] }>(
       token,
       '/me/calendar/getSchedule',

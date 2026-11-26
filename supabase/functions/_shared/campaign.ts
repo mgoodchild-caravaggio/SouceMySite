@@ -4,7 +4,6 @@ import type { SupabaseClient } from 'jsr:@supabase/supabase-js@2';
 
 export const APP_URL = () => ((Deno.env.get('APP_ORIGINS') ?? '').split(',')[0] ?? '').trim();
 const FUNCTIONS_URL = () => `${Deno.env.get('SUPABASE_URL')}/functions/v1`;
-const SENDING_DOMAIN = 'caravaggiorealestate.ca';
 
 export interface ContactRow {
   id: string;
@@ -26,9 +25,44 @@ export interface OrgSettings {
   brokerage_name: string;
   mailing_address: string;
   contact_line: string;
+  sending_domain: string;
+}
+
+/** The footer details and sending domain of one business (Real Estate and Staging are separate companies). */
+export async function orgFor(db: SupabaseClient, business: string): Promise<OrgSettings | null> {
+  const { data } = await db.from('org_settings').select('brokerage_name, mailing_address, contact_line, sending_domain').eq('business', business).maybeSingle();
+  return data as OrgSettings | null;
+}
+
+export interface Sender {
+  name: string;
+  /** Where replies go: the sender's mailbox for this business. */
+  email: string;
+  signature: string;
+}
+
+/**
+ * Who a campaign comes from. Real Estate campaigns reply to the sender's Hub address; Staging campaigns
+ * reply to their connected Staging mailbox, with their Staging signature. Throws a message to show if not ready.
+ */
+export async function senderFor(db: SupabaseClient, business: string, senderId: string): Promise<Sender> {
+  const { data: p } = await db.from('profiles').select('display_name, email, signature, signature_staging').eq('id', senderId).maybeSingle();
+  if (!p) throw new Error('Choose who the email comes from');
+  const name = p.display_name || p.email;
+  if (business !== 'Staging') return { name, email: p.email, signature: p.signature ?? '' };
+  const { data: conn } = await db.from('outlook_connections').select('mailbox').eq('user_id', senderId).eq('business', 'Staging').maybeSingle();
+  if (!conn) throw new Error(`${name} hasn't connected a Staging mailbox (Settings → Outlook), so replies would have nowhere to go.`);
+  return { name, email: conn.mailbox, signature: p.signature_staging ?? '' };
 }
 
 export const footerComplete = (o: OrgSettings | null) => !!o && !!o.brokerage_name.trim() && !!o.mailing_address.trim() && !!o.contact_line.trim();
+
+/** Why a business can't send campaigns yet, or null when it can. */
+export function orgProblem(o: OrgSettings | null, business: string): string | null {
+  if (!footerComplete(o)) return `Add the ${business} company name, mailing address and contact line in Settings first. Canadian law requires them in every marketing email.`;
+  if (!o!.sending_domain.trim()) return `Add the ${business} sending domain in Settings first.`;
+  return null;
+}
 
 const torontoToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Toronto' }).format(new Date());
 
@@ -86,9 +120,10 @@ You're receiving this because of your past dealings or inquiries with us. <a hre
   return { subject, html, text };
 }
 
-/** "Eric Caravaggio <eric@caravaggiorealestate.ca>", only ever on Hub's verified sending domain. */
-export function fromAddress(name: string, email: string) {
-  const addr = email.toLowerCase().endsWith(`@${SENDING_DOMAIN}`) ? email : `noreply@${SENDING_DOMAIN}`;
+/** "Eric Caravaggio <eric@caravaggiorealestate.ca>", only ever on the business's verified sending domain. */
+export function fromAddress(name: string, email: string, domain: string) {
+  const d = domain.trim().toLowerCase();
+  const addr = email.toLowerCase().endsWith(`@${d}`) ? email : `noreply@${d}`;
   return { from: `${name.replace(/[<>"]/g, '')} <${addr}>`, replyTo: email };
 }
 
@@ -111,11 +146,10 @@ export async function resendSingle(payload: Record<string, unknown>) {
 export async function processQueued(db: SupabaseClient, campaignId: string, max = 100): Promise<{ sent: number; failed: number; limited: boolean; done: boolean }> {
   const { data: campaign } = await db.from('campaigns').select('*').eq('id', campaignId).single();
   if (!campaign || campaign.status !== 'sending') return { sent: 0, failed: 0, limited: false, done: true };
-  const [{ data: org }, { data: sender }] = await Promise.all([
-    db.from('org_settings').select('brokerage_name, mailing_address, contact_line').single(),
-    db.from('profiles').select('display_name, email, signature').eq('id', campaign.sender_id).maybeSingle(),
-  ]);
-  if (!footerComplete(org) || !sender) throw new Error('Brokerage details or sender missing');
+  const org = await orgFor(db, campaign.business);
+  const problem = orgProblem(org, campaign.business);
+  if (problem) throw new Error(problem);
+  const sender = await senderFor(db, campaign.business, campaign.sender_id);
 
   const { data: queued } = await db.from('campaign_sends').select('id, contact_id, email, unsub_token').eq('campaign_id', campaignId).eq('status', 'queued').limit(Math.min(max, 100));
   if (!queued?.length) {
@@ -131,7 +165,7 @@ export async function processQueued(db: SupabaseClient, campaignId: string, max 
   ]);
   const byId = new Map((contacts as ContactRow[] ?? []).map((c) => [c.id, c]));
   const suppressed = new Set((supp ?? []).map((s) => s.email));
-  const { from, replyTo } = fromAddress(sender.display_name || sender.email, sender.email);
+  const { from, replyTo } = fromAddress(sender.name, sender.email, org!.sending_domain);
 
   const ready: { send: (typeof queued)[number]; payload: Record<string, unknown> }[] = [];
   for (const q of queued) {
@@ -144,9 +178,9 @@ export async function processQueued(db: SupabaseClient, campaignId: string, max 
     const msg = render({
       subject: campaign.subject,
       body: campaign.body,
-      signature: sender.signature ?? '',
+      signature: sender.signature,
       org: org!,
-      values: mergeValues(c, sender.display_name || sender.email),
+      values: mergeValues(c, sender.name),
       unsubUrl: unsubscribePageUrl(q.unsub_token),
     });
     ready.push({

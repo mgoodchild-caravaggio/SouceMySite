@@ -1,11 +1,12 @@
 // Confirms the signed-in user's Outlook connection works: reads their mailbox name and next meeting.
-import { graph, graphToken } from '../_shared/microsoft.ts';
+import { businessOf, graph, graphToken } from '../_shared/microsoft.ts';
 import { jsonHandler, requireUser } from '../_shared/supabase.ts';
 
 Deno.serve(
   jsonHandler(async (req) => {
     const user = await requireUser(req);
-    const token = await graphToken(user.id);
+    const { business } = await req.json().catch(() => ({}));
+    const token = await graphToken(user.id, businessOf(business));
     const now = new Date();
     const week = new Date(now.getTime() + 7 * 86_400_000);
     const [me, events] = await Promise.all([

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { callFunction } from './outlook';
 import { supabase } from './supabase';
+import type { Business } from '../types';
 
 export type MeetingKind = 'call' | 'meeting' | 'site_visit';
 export const KIND_NAME: Record<MeetingKind, string> = { call: 'Call', meeting: 'Meeting', site_visit: 'Site visit' };
@@ -93,7 +94,9 @@ export interface BusyBlock {
   status: string;
 }
 
-export const fetchEvents = (start: string, end: string) => callFunction<{ events: OutlookEvent[]; truncated?: boolean }>('calendar-events', { start, end });
+/** Events in the signed-in user's mailbox for one business (Real Estate and Staging have separate mailboxes). */
+export const fetchEvents = (business: Business, start: string, end: string) =>
+  callFunction<{ events: OutlookEvent[]; truncated?: boolean }>('calendar-events', { business, start, end });
 
 /** A new event with no contact (meetings with a contact use scheduleMeeting). Times are Toronto wall times. */
 export interface NewEventInput {
@@ -108,15 +111,21 @@ export interface NewEventInput {
   teams: boolean;
   showAs: 'busy' | 'free';
 }
-export const createEvent = (input: NewEventInput) => callFunction<{ id: string }>('calendar-event', { action: 'create', ...input });
-export const updateEvent = (id: string, patch: Partial<Pick<NewEventInput, 'subject' | 'start' | 'end' | 'allDay' | 'location' | 'notes'>>) =>
-  callFunction('calendar-event', { action: 'update', id, ...patch });
-export const cancelEvent = (id: string, comment = '') => callFunction('calendar-event', { action: 'cancel', id, comment });
-export const respondToEvent = (id: string, response: 'accept' | 'tentative' | 'decline', comment = '') =>
-  callFunction('calendar-event', { action: 'respond', id, response, comment });
+// Changes to events in the mailbox of `business` (the one the event was read from).
+export const createEvent = (business: Business, input: NewEventInput) =>
+  callFunction<{ id: string }>('calendar-event', { action: 'create', business, ...input });
+export const updateEvent = (
+  business: Business,
+  id: string,
+  patch: Partial<Pick<NewEventInput, 'subject' | 'start' | 'end' | 'allDay' | 'location' | 'notes'>>,
+) => callFunction('calendar-event', { action: 'update', business, id, ...patch });
+export const cancelEvent = (business: Business, id: string, comment = '') => callFunction('calendar-event', { action: 'cancel', business, id, comment });
+export const respondToEvent = (business: Business, id: string, response: 'accept' | 'tentative' | 'decline', comment = '') =>
+  callFunction('calendar-event', { action: 'respond', business, id, response, comment });
 
-export const fetchFreeBusy = (emails: string[], start: string, end: string) =>
-  callFunction<{ people: { email: string; error: string | null; busy: BusyBlock[] }[] }>('calendar-freebusy', { emails, start, end });
+/** Free/busy, asked through the signed-in user's mailbox for `business`. */
+export const fetchFreeBusy = (business: Business, emails: string[], start: string, end: string) =>
+  callFunction<{ people: { email: string; error: string | null; busy: BusyBlock[] }[] }>('calendar-freebusy', { business, emails, start, end });
 
 export interface ScheduleInput {
   contactId: string;

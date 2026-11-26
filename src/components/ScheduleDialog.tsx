@@ -14,7 +14,7 @@ import {
   type MeetingKind,
 } from '../lib/calendar';
 import { displayName } from '../lib/filters';
-import { useOutlookConnections } from '../lib/outlook';
+import { connectionFor, useOutlookConnections } from '../lib/outlook';
 import { useSession } from '../lib/session';
 import type { Contact } from '../types';
 
@@ -35,7 +35,11 @@ interface Props {
 export function ScheduleDialog({ contact, initialDate, initialTime, onClose, onScheduled }: Props) {
   const { profile, people } = useSession();
   const { connections } = useOutlookConnections();
-  const connected = connections?.some((c) => c.userId === profile.id && !c.lastError);
+  // The meeting goes in the mailbox of the contact's business (Real Estate and Staging have separate mailboxes).
+  const business = contact.business;
+  const conn = connectionFor(connections, profile.id, business);
+  const connected = !!conn && !conn.lastError;
+  const myEmail = (conn?.mailbox ?? profile.email).toLowerCase();
 
   const tomorrow = wallFromDate(new Date(Date.now() + 86_400_000)).slice(0, 10);
   const [kind, setKind] = useState<MeetingKind>(contact.properties.length ? 'site_visit' : 'call');
@@ -71,9 +75,12 @@ export function ScheduleDialog({ contact, initialDate, initialTime, onClose, onS
 
   const teammates = people.filter((p) => p.id !== profile.id);
   const calendars = useMemo(
-    () => [profile, ...teammates.filter((t) => mates.has(t.id))].map((p) => ({ id: p.id, email: p.email.toLowerCase(), name: p.id === profile.id ? 'You' : p.displayName })),
+    () => [
+      { id: profile.id, email: myEmail, name: 'You' },
+      ...teammates.filter((t) => mates.has(t.id)).map((p) => ({ id: p.id, email: p.email.toLowerCase(), name: p.displayName })),
+    ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [profile.id, mates, people],
+    [profile.id, myEmail, mates, people],
   );
 
   // Free/busy for the chosen day.
@@ -82,6 +89,7 @@ export function ScheduleDialog({ contact, initialDate, initialTime, onClose, onS
     let cancelled = false;
     setBusyError('');
     fetchFreeBusy(
+      business,
       calendars.map((c) => c.email),
       `${date}T00:00`,
       `${date}T23:59`,
@@ -91,7 +99,7 @@ export function ScheduleDialog({ contact, initialDate, initialTime, onClose, onS
     return () => {
       cancelled = true;
     };
-  }, [connected, date, calendars]);
+  }, [connected, business, date, calendars]);
 
   const start = `${date}T${time}`;
   const end = addMinutes(start, duration);
@@ -149,8 +157,8 @@ export function ScheduleDialog({ contact, initialDate, initialTime, onClose, onS
         <p className="muted">Checking your Outlook connection…</p>
       ) : !connected ? (
         <div className="notice warn">
-          Connect your Outlook first so Hub can check your calendar and send the invite.{' '}
-          <Link to="/settings" onClick={onClose}>
+          Connect your {business} mailbox first so Hub can check your calendar and send the invite.{' '}
+          <Link to="/settings#outlook" onClick={onClose}>
             Go to Settings →
           </Link>
         </div>

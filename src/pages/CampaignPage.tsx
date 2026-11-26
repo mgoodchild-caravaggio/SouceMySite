@@ -22,7 +22,8 @@ import {
   type Stage,
 } from '../lib/campaigns';
 import { displayName, formatDate } from '../lib/filters';
-import { useSession } from '../lib/session';
+import { connectionFor, useOutlookConnections } from '../lib/outlook';
+import { signatureFor, useSession } from '../lib/session';
 import { useContacts } from '../lib/store';
 import { supabase } from '../lib/supabase';
 import { MERGE_FIELDS, mergeValues, unknownFields, useTemplates } from '../lib/templates';
@@ -59,8 +60,10 @@ function Editor({ initial, onStarted }: { initial: Campaign; onStarted: () => vo
   const { profile, people } = useSession();
   const { contacts, loading } = useContacts();
   const { templates } = useTemplates();
-  const { org } = useOrgSettings();
   const [c, setC] = useState<Campaign>(initial);
+  // Each business has its own footer details, sending domain, signature and reply mailbox.
+  const { org } = useOrgSettings(c.business);
+  const { connections } = useOutlookConnections();
   const [saved, setSaved] = useState<Campaign>(initial);
   const [suppressed, setSuppressed] = useState<Set<string>>(new Set());
   const [msg, setMsg] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
@@ -108,8 +111,11 @@ function Editor({ initial, onStarted }: { initial: Campaign; onStarted: () => vo
   const campaignTags = useMemo(() => [...new Set(contacts.flatMap((x) => x.campaigns))].sort((a, b) => a.localeCompare(b)), [contacts]);
 
   const sender = people.find((p) => p.id === c.senderId) ?? profile;
+  const senderSignature = signatureFor(sender, c.business);
+  // Staging replies go to the sender's Staging mailbox; Real Estate replies to their Hub address.
+  const replyTo = c.business === 'Staging' ? connectionFor(connections, sender.id, 'Staging')?.mailbox : sender.email;
   const sample = audience.included.find((x) => x.id === sampleId) ?? audience.included[0];
-  const preview = previewEmail(c, sample ? mergeValues(sample, sender.displayName) : mergeValues({ firstName: 'Alex', lastName: 'Sample', company: 'tbd', title: '', regions: [], properties: [] } as never, sender.displayName), sender.signature);
+  const preview = previewEmail(c, sample ? mergeValues(sample, sender.displayName) : mergeValues({ firstName: 'Alex', lastName: 'Sample', company: 'tbd', title: '', regions: [], properties: [] } as never, sender.displayName), senderSignature);
   const typos = unknownFields(`${c.subject}\n${c.body}`);
 
   const set = <K extends keyof Campaign>(k: K, v: Campaign[K]) => setC((x) => ({ ...x, [k]: v }));
@@ -168,7 +174,8 @@ function Editor({ initial, onStarted }: { initial: Campaign; onStarted: () => vo
   }
 
   const problems = [
-    !footerReady(org) && 'brokerage details (Settings)',
+    !footerReady(org) && `${c.business} company details (Settings)`,
+    connections !== null && !replyTo && `${sender.displayName}'s Staging mailbox (Settings → Outlook)`,
     !c.subject.trim() && 'a subject',
     !c.body.trim() && 'a message',
     typos.length > 0 && 'valid merge fields',
@@ -207,7 +214,8 @@ function Editor({ initial, onStarted }: { initial: Campaign; onStarted: () => vo
       )}
       {!footerReady(org) && (
         <p className="notice warn">
-          Canadian anti-spam law requires the brokerage's name, mailing address and a phone, email or website in every marketing email.{' '}
+          Canadian anti-spam law requires the sender's company name, mailing address and a phone, email or website in every marketing email, and
+          Hub needs the domain to send {c.business} email from.{' '}
           {isAdmin ? <Link to="/settings#brokerage">Add them in Settings →</Link> : 'Ask an admin to add them in Settings.'}
         </p>
       )}
@@ -335,7 +343,8 @@ function Editor({ initial, onStarted }: { initial: Campaign; onStarted: () => vo
             </label>
             {typos.length > 0 && <p className="field-error">Hub doesn't know {`{{${typos.join('}}, {{')}}}`}. Use the field buttons.</p>}
             <p className="muted small">
-              {sender.displayName}'s signature, the brokerage details and an unsubscribe link are added automatically. Replies go to {sender.email}.
+              {sender.displayName}'s {c.business} signature, the company details and an unsubscribe link are added automatically.{' '}
+              {replyTo ? `Replies go to ${replyTo}.` : connections !== null ? `${sender.displayName} hasn't connected a Staging mailbox yet, so replies would have nowhere to go.` : ''}
             </p>
           </section>
         </div>

@@ -2,33 +2,39 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { addMinutes, fetchEvents, formatWallDay, formatWallTime, wallFromDate, type OutlookEvent } from '../lib/calendar';
 import { displayName } from '../lib/filters';
-import { useOutlookConnections } from '../lib/outlook';
+import { connectionFor, useOutlookConnections } from '../lib/outlook';
 import { useSession } from '../lib/session';
 import { useContacts } from '../lib/store';
 import { supabase } from '../lib/supabase';
 import type { Contact } from '../types';
 
 /**
- * Your Outlook meetings for today and the next few days. Each one is linked to its Hub contact:
+ * Your Outlook meetings for today and the next few days, from the mailbox of the business picked in the sidebar. Each one is linked to its Hub contact:
  * meetings scheduled from Hub by the meeting itself, others by matching attendee email addresses.
  * Clicking a linked meeting opens that contact's Meetings panel, where it can be cancelled.
  */
 export function AgendaPanel({ days = 4, refreshKey = 0 }: { days?: number; refreshKey?: number }) {
-  const { profile, people } = useSession();
+  const { profile, people, business } = useSession();
   const { contacts } = useContacts();
   const { connections } = useOutlookConnections();
   const navigate = useNavigate();
-  const conn = connections?.find((c) => c.userId === profile.id);
+  const conn = connectionFor(connections, profile.id, business);
   const [events, setEvents] = useState<OutlookEvent[] | null>(null);
   // Outlook event id → contact id, for meetings booked through Hub.
   const [hubEvents, setHubEvents] = useState<Map<string, string>>(new Map());
   const [error, setError] = useState('');
 
+  // A different business is a different mailbox: don't show the old one's events meanwhile.
+  useEffect(() => {
+    setEvents(null);
+    setError('');
+  }, [business]);
+
   useEffect(() => {
     if (!conn || conn.lastError) return;
     const today = wallFromDate(new Date()).slice(0, 10);
     let cancelled = false;
-    fetchEvents(`${today}T00:00`, addMinutes(`${today}T00:00`, days * 24 * 60))
+    fetchEvents(business, `${today}T00:00`, addMinutes(`${today}T00:00`, days * 24 * 60))
       .then(async (r) => {
         if (cancelled) return;
         setEvents(r.events);
@@ -41,15 +47,15 @@ export function AgendaPanel({ days = 4, refreshKey = 0 }: { days?: number; refre
     return () => {
       cancelled = true;
     };
-  }, [conn, days, refreshKey]);
+  }, [conn, business, days, refreshKey]);
 
-  // Teammates are on lots of invites; their addresses are never matched to contact records.
+  // Teammates are on lots of invites; their addresses (and connected mailboxes) are never matched to contact records.
   const byEmail = useMemo(() => {
-    const team = new Set(people.map((p) => p.email.toLowerCase()));
+    const team = new Set([...people.map((p) => p.email.toLowerCase()), ...(connections ?? []).map((c) => c.mailbox.toLowerCase())]);
     const map = new Map<string, Contact>();
     for (const c of contacts) if (c.email && !team.has(c.email.toLowerCase())) map.set(c.email.toLowerCase(), c);
     return map;
-  }, [contacts, people]);
+  }, [contacts, people, connections]);
   const byId = useMemo(() => new Map(contacts.map((c) => [c.id, c])), [contacts]);
 
   /** The contacts a meeting belongs to: the Hub booking's contact first, then any attendee matches. */
@@ -78,17 +84,17 @@ export function AgendaPanel({ days = 4, refreshKey = 0 }: { days?: number; refre
     <section className="panel">
       <div className="panel-head">
         <h2>Upcoming meetings</h2>
-        {conn && !conn.lastError && <span className="muted small">Next {days} days · Outlook</span>}
+        {conn && !conn.lastError && <span className="muted small">Next {days} days · {conn.mailbox}</span>}
       </div>
       {connections === null ? (
         <p className="muted">Loading…</p>
       ) : !conn ? (
         <p className="muted">
-          <Link to="/settings">Connect Outlook</Link> to see your meetings here and schedule from Hub.
+          <Link to="/settings#outlook">Connect your {business} mailbox</Link> to see its meetings here and schedule from Hub.
         </p>
       ) : conn.lastError ? (
         <p className="notice warn">
-          Outlook needs reconnecting. <Link to="/settings">Go to Settings →</Link>
+          Your {business} mailbox needs reconnecting. <Link to="/settings#outlook">Go to Settings →</Link>
         </p>
       ) : error ? (
         <p className="field-error">Couldn't load your calendar: {error}</p>

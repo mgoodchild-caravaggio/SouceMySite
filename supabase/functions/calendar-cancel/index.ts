@@ -1,5 +1,5 @@
 // Cancels a Hub-scheduled meeting in the organiser's Outlook (attendees are notified) and records it.
-import { graph, graphToken } from '../_shared/microsoft.ts';
+import { businessOf, graph, graphToken } from '../_shared/microsoft.ts';
 import { adminClient, HttpError, jsonHandler, requireUser } from '../_shared/supabase.ts';
 
 Deno.serve(
@@ -12,7 +12,7 @@ Deno.serve(
     if (m.organizer_id !== user.id) throw new HttpError(403, 'Only the person who scheduled it can cancel it');
     if (m.status === 'cancelled') return { ok: true };
     if (m.outlook_event_id) {
-      const token = await graphToken(user.id);
+      const token = await graphToken(user.id, businessOf(m.mailbox_business));
       const comment = String(b.comment ?? '').slice(0, 500);
       try {
         await graph(token, `/me/events/${encodeURIComponent(m.outlook_event_id)}/cancel`, { method: 'POST', body: JSON.stringify({ comment }) });

@@ -1,5 +1,6 @@
 // Creates an Outlook event from Hub (which sends the invitations) and records it on the contact.
-import { graph, graphToken, TIME_ZONE, torontoToUtc, wallTime } from '../_shared/microsoft.ts';
+// It goes in the mailbox of the contact's business: Real Estate and Staging have separate mailboxes.
+import { businessOf, graph, graphToken, TIME_ZONE, torontoToUtc, wallTime } from '../_shared/microsoft.ts';
 import { adminClient, HttpError, jsonHandler, requireUser } from '../_shared/supabase.ts';
 
 const KINDS = { call: 'Call', meeting: 'Meeting', site_visit: 'Site visit' } as const;
@@ -18,7 +19,7 @@ Deno.serve(
     if (!subject) throw new HttpError(400, 'Add a title');
 
     const db = adminClient();
-    const { data: contact } = await db.from('contacts').select('id, first_name, last_name, email, archived_at').eq('id', String(b.contactId)).maybeSingle();
+    const { data: contact } = await db.from('contacts').select('id, business, first_name, last_name, email, archived_at').eq('id', String(b.contactId)).maybeSingle();
     if (!contact || contact.archived_at) throw new HttpError(404, 'Contact not found');
 
     // Attendees: the contact (if invited and they have an email) plus chosen teammates.
@@ -32,7 +33,8 @@ Deno.serve(
 
     const notes = String(b.notes ?? '').trim().slice(0, 4000);
     const location = String(b.location ?? '').trim().slice(0, 300);
-    const token = await graphToken(user.id);
+    const business = businessOf(contact.business);
+    const token = await graphToken(user.id, business);
     const event = await graph<{ id: string; webLink: string; onlineMeeting?: { joinUrl?: string } | null }>(token, '/me/events', {
       method: 'POST',
       body: JSON.stringify({
@@ -55,6 +57,7 @@ Deno.serve(
         contact_id: contact.id,
         organizer_id: user.id,
         outlook_event_id: event.id,
+        mailbox_business: business,
         kind,
         subject,
         starts_at: torontoToUtc(start),

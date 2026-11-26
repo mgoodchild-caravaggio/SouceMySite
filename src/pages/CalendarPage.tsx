@@ -17,7 +17,7 @@ import {
   type OutlookEvent,
 } from '../lib/calendar';
 import { companyLabel, displayName } from '../lib/filters';
-import { connectOutlook, useOutlookConnections } from '../lib/outlook';
+import { connectionFor, connectOutlook, useOutlookConnections } from '../lib/outlook';
 import { useSession } from '../lib/session';
 import { useContacts } from '../lib/store';
 import { supabase } from '../lib/supabase';
@@ -115,13 +115,16 @@ const eventClass = (e: OutlookEvent, hub: boolean) =>
     .filter(Boolean)
     .join(' ');
 
-/** Your Outlook calendar in Hub: see it by day, week, month or as a list, and add, change or cancel events. */
+/**
+ * Your Outlook calendar in Hub: see it by day, week, month or as a list, and add, change or cancel events.
+ * It's the calendar of the business picked in the sidebar: Real Estate and Staging have separate mailboxes.
+ */
 export default function CalendarPage() {
-  const { profile, people } = useSession();
+  const { profile, people, business } = useSession();
   const { contacts } = useContacts();
   const { connections } = useOutlookConnections();
   const [params, setParams] = useSearchParams();
-  const conn = connections?.find((c) => c.userId === profile.id);
+  const conn = connectionFor(connections, profile.id, business);
   const today = wallFromDate(new Date()).slice(0, 10);
 
   const view: View = (VIEWS.some((v) => v.id === params.get('view')) ? params.get('view') : isPhone() ? 'day' : 'week') as View;
@@ -155,11 +158,17 @@ export default function CalendarPage() {
   const [reloadKey, setReloadKey] = useState(0);
   const reload = useCallback(() => setReloadKey((k) => k + 1), []);
 
+  // A different business is a different mailbox: don't show the old one's events meanwhile.
+  useEffect(() => {
+    setEvents(null);
+    setHubEvents(new Map());
+  }, [business]);
+
   useEffect(() => {
     if (!conn || conn.lastError) return;
     let cancelled = false;
     setError('');
-    fetchEvents(`${from}T00:00`, `${to}T00:00`)
+    fetchEvents(business, `${from}T00:00`, `${to}T00:00`)
       .then(async (r) => {
         if (cancelled) return;
         setEvents(r.events);
@@ -172,7 +181,7 @@ export default function CalendarPage() {
     return () => {
       cancelled = true;
     };
-  }, [conn, from, to, reloadKey]);
+  }, [conn, business, from, to, reloadKey]);
 
   // Keep it fresh when you come back to the tab (e.g. after accepting something in Outlook).
   useEffect(() => {
@@ -181,8 +190,11 @@ export default function CalendarPage() {
     return () => document.removeEventListener('visibilitychange', onFocus);
   }, [reload]);
 
-  // Teammates are on lots of invites; their addresses are never matched to contact records.
-  const teamEmails = useMemo(() => new Set(people.map((p) => p.email.toLowerCase())), [people]);
+  // Teammates are on lots of invites; their addresses (and connected mailboxes) are never matched to contact records.
+  const teamEmails = useMemo(
+    () => new Set([...people.map((p) => p.email.toLowerCase()), ...(connections ?? []).map((c) => c.mailbox.toLowerCase())]),
+    [people, connections],
+  );
   const byEmail = useMemo(() => {
     const map = new Map<string, Contact>();
     for (const c of contacts) if (c.email && !teamEmails.has(c.email.toLowerCase())) map.set(c.email.toLowerCase(), c);
@@ -222,12 +234,17 @@ export default function CalendarPage() {
         </header>
         <div className="panel">
           <p>
-            <strong>{conn?.lastError ? 'Your Outlook connection needs to be renewed.' : 'Connect your Outlook calendar to use it here.'}</strong>
+            <strong>
+              {conn?.lastError ? `Your ${business} mailbox connection needs to be renewed.` : `Connect your ${business} mailbox to see its calendar here.`}
+            </strong>
           </p>
-          <p className="muted small">Hub shows your Microsoft 365 calendar, and adds and changes events in it. Nothing is copied out of Outlook.</p>
+          <p className="muted small">
+            Hub shows your Microsoft 365 calendar, and adds and changes events in it. Nothing is copied out of Outlook. Real Estate and Staging use
+            separate mailboxes; switch business in the sidebar to see the other calendar.
+          </p>
           <div>
-            <button type="button" className="btn primary" onClick={() => connectOutlook().catch((e) => setError((e as Error).message))}>
-              {conn?.lastError ? 'Reconnect Outlook' : 'Connect Outlook'}
+            <button type="button" className="btn primary" onClick={() => connectOutlook(business).catch((e) => setError((e as Error).message))}>
+              {conn?.lastError ? `Reconnect ${business} mailbox` : `Connect ${business} mailbox`}
             </button>{' '}
             <Link to="/settings#outlook" className="link-btn">
               Outlook settings
@@ -247,6 +264,7 @@ export default function CalendarPage() {
         <div className="cal-title">
           <h1>Calendar</h1>
           <span className="muted cal-range">{title}</span>
+          {conn && <span className="muted small cal-mailbox" title={`${business} calendar`}>{conn.mailbox}</span>}
         </div>
         <div className="cal-controls">
           <button type="button" className="btn small" onClick={() => go({ date: today })} disabled={days.includes(today) && view !== 'month'}>
@@ -553,7 +571,7 @@ function EventDetails({
   onEdit: () => void;
   onChanged: () => void;
 }) {
-  const { people } = useSession();
+  const { people, business } = useSession();
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const [confirming, setConfirming] = useState(false);
@@ -597,7 +615,7 @@ function EventDetails({
                   type="button"
                   className={`btn small ${r === 'accept' ? 'primary' : ''} ${(r === 'accept' && e.myResponse === 'accepted') || (r === 'tentative' && e.myResponse === 'tentativelyAccepted') ? 'on' : ''}`}
                   disabled={!!busy}
-                  onClick={() => run(r, () => respondToEvent(e.id, r))}
+                  onClick={() => run(r, () => respondToEvent(business, e.id, r))}
                 >
                   {busy === r ? '…' : r === 'accept' ? 'Accept' : r === 'tentative' ? 'Tentative' : 'Decline'}
                 </button>
@@ -676,7 +694,7 @@ function EventDetails({
             </p>
             {hasAttendees && <input value={comment} onChange={(x) => setComment(x.target.value)} placeholder="Message to attendees (optional)" maxLength={500} />}
             <div className="inline-actions">
-              <button type="button" className="btn small danger" disabled={!!busy} onClick={() => run('cancel', () => cancelEvent(e.id, comment))}>
+              <button type="button" className="btn small danger" disabled={!!busy} onClick={() => run('cancel', () => cancelEvent(business, e.id, comment))}>
                 {busy === 'cancel' ? 'Working…' : hasAttendees ? 'Cancel meeting' : 'Delete'}
               </button>
               <button type="button" className="link-btn small" onClick={() => setConfirming(false)}>
@@ -707,7 +725,7 @@ function EventForm({
   onSaved: () => void;
   onWithContact: (c: Contact, date: string, time: string) => void;
 }) {
-  const { profile, people } = useSession();
+  const { profile, people, business } = useSession();
   const { contacts, loading } = useContacts();
   const editing = !!event;
   const startMinutes = event && !event.allDay ? minutesOfDay(event.end) - minutesOfDay(event.start) : 60;
@@ -739,8 +757,9 @@ function EventForm({
   const matches = useMemo(() => {
     const q = contactSearch.trim().toLowerCase();
     if (q.length < 2) return [];
-    return contacts.filter((c) => !c.archivedAt && `${displayName(c)} ${c.company} ${c.phone} ${c.email ?? ''}`.toLowerCase().includes(q)).slice(0, 6);
-  }, [contactSearch, contacts]);
+    // This business's contacts: a meeting with one goes in this business's mailbox.
+    return contacts.filter((c) => !c.archivedAt && c.business === business && `${displayName(c)} ${c.company} ${c.phone} ${c.email ?? ''}`.toLowerCase().includes(q)).slice(0, 6);
+  }, [contactSearch, contacts, business]);
 
   async function save() {
     setError('');
@@ -751,13 +770,13 @@ function EventForm({
     setSaving(true);
     try {
       if (editing) {
-        await updateEvent(event!.id, { subject, start: s, end: en, allDay, location, ...(notesTouched && { notes }) });
+        await updateEvent(business, event!.id, { subject, start: s, end: en, allDay, location, ...(notesTouched && { notes }) });
       } else {
         const extra = emails
           .split(/[\s,;]+/)
           .map((x) => x.trim())
           .filter(Boolean);
-        await createEvent({ subject, start: s, end: en, allDay, location, notes, teammateIds: [...mates], emails: extra, teams, showAs: free ? 'free' : 'busy' });
+        await createEvent(business, { subject, start: s, end: en, allDay, location, notes, teammateIds: [...mates], emails: extra, teams, showAs: free ? 'free' : 'busy' });
       }
       onSaved();
     } catch (e) {
